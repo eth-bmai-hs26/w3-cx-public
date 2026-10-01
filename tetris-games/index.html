@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Toys: CNN Games</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #f5f4ef; --surface: #ffffff; --surface2: #efeef5; --ink: #1c1c28; --dim: #5f5e76; --border: #dcdbe6;
+    --stencil: #5b6ee8; --stencil-soft: rgba(91, 110, 232, 0.20);
+    --shadow: 0 6px 24px rgba(20, 20, 40, 0.08);
+    --display: 'Sora', system-ui, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+[data-theme="dark"] {
+    --bg: #101018; --surface: #191926; --surface2: #222233; --ink: #ecebf6; --dim: #a09fba; --border: #2e2e44;
+    --stencil: #8d9bff; --stencil-soft: rgba(141, 155, 255, 0.24);
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--display); font-size: 18px; line-height: 1.5; min-height: 100vh; }
+.theme-btn { position: fixed; top: 16px; right: 16px; border: 1px solid var(--border); background: var(--surface2); color: var(--ink); border-radius: 10px; padding: 6px 10px; cursor: pointer; font-size: 0.9rem; }
+main { max-width: 900px; margin: 0 auto; padding: 60px 20px 70px; }
+header { margin-bottom: 36px; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; margin-bottom: 12px; }
+h1 span { color: var(--stencil); }
+.lead { color: var(--dim); font-size: 1.1rem; }
+.games { display: flex; flex-direction: column; gap: 16px; }
+.game { display: flex; gap: 22px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; text-decoration: none; color: var(--ink); box-shadow: var(--shadow); transition: transform 0.2s, border-color 0.2s; }
+.game:hover { transform: translateY(-2px); border-color: var(--stencil); }
+.num { flex-shrink: 0; width: 60px; height: 60px; border-radius: 16px; background: var(--stencil-soft); color: var(--stencil); font-family: var(--mono); font-weight: 800; font-size: 1.6rem; display: flex; align-items: center; justify-content: center; }
+.game h2 { font-size: 1.25rem; margin-bottom: 4px; }
+.game p { color: var(--dim); font-size: 0.95rem; }
+.game .learns { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; color: var(--stencil); margin-top: 6px; letter-spacing: 0.02em; }
+.arrow { margin-left: auto; font-size: 1.4rem; color: var(--dim); }
+.note { margin-top: 32px; color: var(--dim); font-size: 0.9rem; border-top: 1px solid var(--border); padding-top: 18px; }
+@media (max-width: 600px) { .arrow { display: none; } .game { padding: 18px; gap: 16px; } .num { width: 48px; height: 48px; font-size: 1.3rem; } }
+</style>
+</head>
+<body>
+<button class="theme-btn" onclick="toggleTheme()" title="Light / dark">◐</button>
+<main>
+    <header>
+        <h1>Pixel Toys <span>Quality Line</span></h1>
+        <p class="lead">You've just joined the quality-control team at a toy factory. Five shifts, five problems, and by the end you'll have built, by hand, the idea behind every image-recognition AI: the convolutional neural network (CNN).</p>
+    </header>
+    <div class="games">
+        <a class="game" href="game1-stencil-hunt.html">
+            <div class="num">1</div>
+            <div><h2>Stencil Hunt</h2><p>Find the T-parts in a tray photo using nothing but a see-through stencil.</p><div class="learns">filters · convolution · feature maps</div></div>
+            <div class="arrow">→</div>
+        </a>
+        <a class="game" href="game2-layers.html">
+            <div class="num">2</div>
+            <div><h2>Build the Inspector</h2><p>Decide whether a tray holds a complete Robo toy by stacking a second layer on top of the part stencils.</p><div class="learns">layers · activation</div></div>
+            <div class="arrow">→</div>
+        </a>
+        <a class="game" href="game3-pooling.html">
+            <div class="num">3</div>
+            <div><h2>Shrink the Sheets</h2><p>The inspector is too fussy about parts that are a square off. Fix it, and make its filter smaller at the same time.</p><div class="learns">pooling</div></div>
+            <div class="arrow">→</div>
+        </a>
+        <a class="game" href="game4-let-it-learn.html">
+            <div class="num">4</div>
+            <div><h2>Let It Learn</h2><p>Follow one guess through the sorter, then watch it invent its own stencil from labelled examples.</p><div class="learns">training · loss · gradient descent</div></div>
+            <div class="arrow">→</div>
+        </a>
+        <a class="game" href="game5-why-a-stencil.html">
+            <div class="num">5</div>
+            <div><h2>Why a Stencil?</h2><p>The supplier's sorter has no stencil, just one number per square. Move a part around and count the numbers to see why CNNs win.</p><div class="learns">weight sharing · locality</div></div>
+            <div class="arrow">→</div>
+        </a>
+    </div>
+    <p class="note">Play them in order; each one starts where the last one ran into trouble. About 10 minutes each. Works offline; nothing is saved or sent anywhere. · ETH Zürich · Building ML and AI Applications · HS26</p>
+</main>
+<script>
+function applyTheme(t) { document.documentElement.dataset.theme = t; }
+function toggleTheme() {
+    const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(t);
+    try { localStorage.setItem('pixeltoys-theme', t); } catch (e) {}
+}
+(function () { let t = null; try { t = localStorage.getItem('pixeltoys-theme'); } catch (e) {} applyTheme(t || 'light'); })();
+</script>
+</body>
+</html>

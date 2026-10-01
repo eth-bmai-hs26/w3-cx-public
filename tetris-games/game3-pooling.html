@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shrink the Sheets</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══ THEME ═══ */
+:root {
+    --bg: #f5f4ef; --surface: #ffffff; --surface2: #efeef5; --ink: #1c1c28; --dim: #5f5e76; --border: #dcdbe6;
+    --cell: #e6e5ee; --lit: #2a2b3d; --lit-ink: #ffffff;
+    --stencil: #5b6ee8; --stencil-soft: rgba(91, 110, 232, 0.20);
+    --good: #1a9a55; --good-soft: rgba(26, 154, 85, 0.14);
+    --bad: #d2413c; --bad-soft: rgba(210, 65, 60, 0.12);
+    --warn: #c28405;
+    --p-head: #7b5cff; --p-body: #2f7de1; --p-lleg: #e0661f; --p-rleg: #0f9a91;
+    --shadow: 0 6px 24px rgba(20, 20, 40, 0.08);
+    --display: 'Sora', system-ui, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --cs: clamp(20px, 2.6vw, 30px);   /* photo cell */
+    --ms: clamp(10px, 1.2vw, 13px);   /* full-size sheet cell */
+}
+[data-theme="dark"] {
+    --bg: #101018; --surface: #191926; --surface2: #222233; --ink: #ecebf6; --dim: #a09fba; --border: #2e2e44;
+    --cell: #26263a; --lit: #e9e8f6; --lit-ink: #15151f;
+    --stencil: #8d9bff; --stencil-soft: rgba(141, 155, 255, 0.24);
+    --good: #3fcf82; --good-soft: rgba(63, 207, 130, 0.16);
+    --bad: #ff6b63; --bad-soft: rgba(255, 107, 99, 0.14);
+    --warn: #f0b429;
+    --p-head: #a48bff; --p-body: #5aa2ff; --p-lleg: #ff9150; --p-rleg: #2fd0c4;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--display); font-size: 18px; line-height: 1.5; min-height: 100vh; }
+button { font-family: inherit; }
+
+/* ═══ TOP BAR ═══ */
+.topbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.topbar a { color: var(--dim); text-decoration: none; font-size: 0.85rem; }
+.topbar a:hover { color: var(--ink); }
+.topbar .title { font-family: var(--mono); font-weight: 800; font-size: 1rem; }
+.topbar .title span { color: var(--stencil); }
+.pips { display: flex; gap: 6px; margin-left: auto; }
+.pip { width: 12px; height: 12px; border-radius: 50%; background: var(--border); border: none; padding: 0; cursor: pointer; transition: transform 0.15s; }
+.pip:hover { transform: scale(1.4); background: var(--stencil); }
+.pip:focus-visible { outline: 2px solid var(--stencil); outline-offset: 2px; }
+.pip.done { background: var(--stencil); }
+.pip.now { background: var(--stencil); box-shadow: 0 0 0 4px var(--stencil-soft); }
+.theme-btn { border: 1px solid var(--border); background: var(--surface2); color: var(--ink); border-radius: 10px; padding: 6px 10px; cursor: pointer; font-size: 0.9rem; }
+
+/* ═══ LAYOUT ═══ */
+main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+.screen { display: none; animation: fadein 0.35s ease; }
+.screen.active { display: block; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+h1 { font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.15; margin-bottom: 14px; }
+h2 { font-size: clamp(1.3rem, 2.8vw, 1.8rem); margin-bottom: 10px; }
+p { margin-bottom: 10px; }
+.lead { font-size: 1.1rem; color: var(--dim); max-width: 780px; }
+.row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.col { display: flex; flex-direction: column; gap: 10px; }
+.label { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.task { border-left: 5px solid var(--stencil); background: var(--surface); border-radius: 12px; padding: 12px 16px; margin: 14px 0; box-shadow: var(--shadow); }
+.task b { color: var(--stencil); }
+.muted { color: var(--dim); }
+
+/* ═══ SUPERVISOR ═══ */
+.mara { display: flex; gap: 14px; align-items: flex-start; margin: 16px 0; max-width: 840px; }
+.mara .avatar { flex-shrink: 0; width: 54px; height: 54px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 1.7rem; }
+.mara .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 4px 16px 16px 16px; padding: 12px 16px; box-shadow: var(--shadow); }
+.mara .who { font-family: var(--mono); font-size: 0.75rem; font-weight: 700; color: var(--dim); margin-bottom: 2px; }
+
+/* ═══ BUTTONS ═══ */
+.btn { border: 1px solid var(--border); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 10px 18px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: transform 0.1s, background 0.2s; text-decoration: none; display: inline-block; }
+.btn:hover { background: var(--surface2); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--stencil); border-color: var(--stencil); color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.on { border-color: var(--stencil); background: var(--stencil-soft); box-shadow: inset 0 0 0 1px var(--stencil); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+/* ═══ GRIDS ═══ */
+.grid { display: grid; gap: 3px; padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: max-content; }
+.cell { width: var(--cs); height: var(--cs); border-radius: 5px; background: var(--cell); position: relative; }
+.cell.lit { background: var(--lit); }
+.cell.sil { background: var(--cell); box-shadow: inset 0 0 0 2px var(--dim); }
+.cell.ok { box-shadow: 0 0 0 3px var(--good); z-index: 1; }
+.cell.miss { box-shadow: 0 0 0 3px var(--bad); z-index: 1; }
+.cell.prev { outline: 3px solid var(--stencil); outline-offset: -3px; }
+.cell.prev-bad { outline: 3px solid var(--bad); outline-offset: -3px; }
+.small.grid { gap: 2px; padding: 4px; border-radius: 8px; }
+.small .cell { width: var(--ms); height: var(--ms); border-radius: 3px; }
+.pc-head { background: var(--p-head) !important; }
+.pc-body { background: var(--p-body) !important; }
+.pc-lleg { background: var(--p-lleg) !important; }
+.pc-rleg { background: var(--p-rleg) !important; }
+.part-icon { display: inline-grid; grid-template-columns: repeat(3, auto); gap: 2px; vertical-align: middle; }
+.part-icon i { width: 10px; height: 10px; border-radius: 2px; display: block; background: var(--surface2); }
+.part-icon.big i { width: 20px; height: 20px; border-radius: 4px; }
+
+/* ═══ PIECES (take-apart puzzle) ═══ */
+.pieces { display: flex; flex-wrap: wrap; gap: 10px; max-width: 380px; }
+.piece { border: 2px solid var(--border); background: var(--surface); border-radius: 12px; padding: 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--dim); min-width: 96px; }
+.piece:hover { border-color: var(--stencil); }
+.piece.sel { border-color: var(--stencil); background: var(--stencil-soft); color: var(--ink); }
+.piece.used { opacity: 0.3; cursor: default; }
+
+/* ═══ PIPELINE STAGES ═══ */
+.stages { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.stage { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); animation: fadein 0.35s ease; }
+.stage-num { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: var(--stencil-soft); color: var(--stencil); font-family: var(--mono); font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.stage-info { width: 250px; flex-shrink: 0; }
+.stage-title { font-weight: 700; }
+.stage-title small { display: block; font-family: var(--mono); font-size: 0.72rem; font-weight: 600; color: var(--stencil); letter-spacing: 0.04em; text-transform: uppercase; }
+.stage-text { font-size: 0.88rem; color: var(--dim); }
+.stage-vis { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; flex: 1; min-width: 260px; }
+.stage.off { opacity: 0.55; }
+.stage .arrow { font-family: var(--mono); font-weight: 800; color: var(--dim); font-size: 1.3rem; }
+.sheet-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.sheet-card .head { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 600; min-height: 34px; }
+.sheet-card .grid { background: var(--surface); }
+.sheet-card .cell { background: var(--surface2); }
+.sheet-card .cell.mark { border-radius: 50%; }
+.sheet-card .cell.used { box-shadow: 0 0 0 2px var(--good); z-index: 1; }
+.sheet-card .cell.want { box-shadow: 0 0 0 2px var(--bad); z-index: 1; }
+.pooled .cell { width: 22px; height: 22px; border-radius: 4px; }
+.pooled .cell.mark { border-radius: 4px; }
+.pooled-one { width: 52px; height: 52px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 800; color: #fff; }
+.pooled-one.no { background: var(--surface) !important; color: var(--dim); border: 1px solid var(--border); }
+.counts .cell { width: 22px; height: 22px; font-family: var(--mono); font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; justify-content: center; color: var(--dim); background: var(--surface2); }
+.counts .cell.v3 { color: var(--ink); }
+.counts .cell.v4 { color: #fff; }
+.relu { border-collapse: collapse; font-family: var(--mono); font-size: 0.8rem; background: var(--surface2); border-radius: 10px; overflow: hidden; }
+.relu th { text-align: right; padding: 4px 8px; color: var(--dim); font-weight: 600; }
+.relu td { width: 30px; text-align: center; padding: 4px 0; font-weight: 700; }
+.relu td.on { background: var(--good); color: #fff; border-radius: 6px; }
+.simpl { display: block; margin-top: 6px; font-size: 0.8rem; font-style: italic; }
+/* layer-2 sliding animation */
+.l2anim { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.l2-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.sheet-card .cell.win:not(.mark) { background: color-mix(in srgb, var(--stencil) 12%, var(--surface2)); }
+.sheet-card .cell.win.mark { box-shadow: 0 0 0 2px var(--stencil); }
+.sheet-card .cell.slot { outline: 2px solid var(--ink); outline-offset: 0; z-index: 2; }
+.sheet-card .cell.slot.hit { outline-color: var(--good); box-shadow: 0 0 0 4px var(--good-soft); }
+.pooled-one.win { box-shadow: 0 0 0 3px var(--stencil); }
+.pooled-one.slot.hit { box-shadow: 0 0 0 3px var(--good), 0 0 0 7px var(--good-soft); }
+.robo-sheet .cell.empty { color: transparent; }
+.robo-sheet .cell.here { box-shadow: 0 0 0 3px var(--stencil); z-index: 1; }
+.l2-cap { font-family: var(--mono); font-size: 0.85rem; min-height: 1.6em; }
+.l2-cap .t-ok { color: var(--good); font-weight: 800; }
+.l2-cap .t-no { color: var(--bad); font-weight: 800; }
+/* swipeable carousel of the four count sheets */
+.carousel { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.car-row { display: flex; align-items: center; gap: 6px; }
+.car-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; width: 282px; gap: 0; border-radius: 12px; scrollbar-width: thin; overscroll-behavior-x: contain; }
+.car-track > .sheet-card { flex: 0 0 282px; scroll-snap-align: start; }
+.car-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 800; cursor: pointer; flex-shrink: 0; }
+.car-btn:hover { background: var(--surface2); }
+.car-btn:disabled { opacity: 0.3; cursor: default; }
+.car-dots { display: flex; gap: 6px; align-items: center; font-family: var(--mono); font-size: 0.72rem; color: var(--dim); }
+.car-dots button { width: 12px; height: 12px; border-radius: 50%; border: none; padding: 0; cursor: pointer; opacity: 0.35; }
+.car-dots button.on { opacity: 1; transform: scale(1.25); }
+
+/* Robo filter (layer 2) and Robo sheet */
+.rfilter { background: var(--surface); border: 2px dashed var(--stencil); border-radius: 12px; padding: 8px; display: inline-flex; flex-direction: column; gap: 6px; align-items: center; }
+.rfilter .grid { border: none; padding: 0; background: transparent; }
+.rfilter .cell { width: 26px; height: 26px; border-radius: 6px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 800; color: #fff; }
+.rfilter.k5 .cell { width: 20px; height: 20px; font-size: 0.5rem; }
+.rfilter.k1 .cell { width: 64px; height: 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; background: var(--surface2); }
+.rfilter.k1 .cell b { border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; }
+.rfilter .cap { font-family: var(--mono); font-size: 0.7rem; color: var(--dim); text-align: center; }
+.robo-sheet .cell { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; font-size: 0.8rem; background: var(--surface2); color: var(--dim); }
+.robo-sheet .cell.v2, .robo-sheet .cell.v3 { color: var(--ink); }
+.robo-sheet .cell.v4 { background: var(--good); color: #fff; }
+.robo-sheet .cell.best { box-shadow: 0 0 0 3px var(--warn); z-index: 1; }
+.robo-sheet.k1 .cell { width: 52px; height: 52px; font-size: 1.2rem; }
+
+.verdict { font-family: var(--mono); font-weight: 800; font-size: 1.2rem; padding: 10px 14px; border-radius: 12px; display: inline-block; }
+.verdict.yes { background: var(--good-soft); color: var(--good); }
+.verdict.no { background: var(--bad-soft); color: var(--bad); }
+.why { max-width: 880px; margin-top: 14px; }
+
+/* ═══ TUNE ═══ */
+.trays { display: flex; flex-wrap: wrap; gap: 14px; }
+.tray-card { border: 3px solid var(--border); border-radius: 14px; padding: 10px; background: var(--surface); cursor: pointer; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.tray-card.sel { border-color: var(--stencil); }
+.tray-card .name { font-weight: 700; font-size: 0.9rem; }
+.tray-card .line { font-family: var(--mono); font-size: 0.8rem; font-weight: 700; }
+.tray-card .line.good { color: var(--good); }
+.tray-card .line.bad { color: var(--bad); }
+.tray-card.match { box-shadow: 0 0 0 3px var(--good-soft); }
+.tray-card.mismatch { box-shadow: 0 0 0 4px var(--bad-soft); }
+.tray-card .grid .cell { width: 11px; height: 11px; border-radius: 2px; }
+.tray-card .grid { gap: 2px; padding: 4px; }
+.strict { display: flex; flex-wrap: wrap; gap: 10px; }
+.feedback { font-weight: 600; min-height: 1.6em; margin-top: 10px; max-width: 880px; }
+.feedback.ok { color: var(--good); }
+.feedback.no { color: var(--bad); }
+
+/* ═══ REVEAL ═══ */
+.stepper-dots { display: flex; gap: 8px; margin: 6px 0 16px; }
+.stepper-dots span { width: 34px; height: 6px; border-radius: 3px; background: var(--border); }
+.stepper-dots span.on { background: var(--stencil); }
+.map-table { border-collapse: collapse; width: 100%; max-width: 880px; margin: 10px 0; }
+.map-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.map-table td:first-child { font-weight: 600; width: 45%; }
+.map-table td:nth-child(2) { color: var(--dim); width: 40px; text-align: center; }
+.map-table td:last-child { font-family: var(--mono); font-weight: 700; color: var(--stencil); }
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.flow .box { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; text-align: center; }
+.flow .verb { font-size: 0.78rem; color: var(--dim); max-width: 110px; text-align: center; }
+.flow .verb b { color: var(--ink); display: block; font-size: 1.2rem; }
+.flow .verb i { font-style: normal; font-family: var(--mono); font-weight: 700; color: var(--stencil); display: block; }
+.mini-stack { position: relative; }
+.mini-stack > div { position: absolute; }
+.calc { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; margin: 12px 0; }
+.calc .col { align-items: center; }
+.calc .op { font-family: var(--mono); font-size: 1.6rem; font-weight: 800; color: var(--dim); height: 98px; display: flex; align-items: center; }
+.patch .cell { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; font-size: 0.8rem; background: var(--surface2); color: var(--dim); }
+.patch .cell.slot { outline: 3px solid var(--stencil); outline-offset: -3px; }
+.patch .cell.hit { color: #fff; }
+.formula { font-family: var(--mono); font-size: 1rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; display: inline-block; }
+.ladder { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+.ladder .step { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-weight: 600; }
+.ladder .arrow { color: var(--dim); font-weight: 800; }
+.pool-anim { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 12px 0 6px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.pool-anim .op { font-family: var(--mono); font-size: 1.6rem; font-weight: 800; color: var(--dim); }
+.pgrid .cell { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; color: var(--ink); background: var(--surface2); transition: box-shadow 0.12s; }
+.pgrid .cell.empty { color: transparent; }
+.pgrid .cell.win { box-shadow: inset 0 0 0 3px var(--stencil); }
+.pgrid .cell.here { box-shadow: 0 0 0 3px var(--warn); z-index: 1; }
+.pgrid .cell.exp { outline: 2px dashed var(--ink); outline-offset: -6px; }
+.pgrid .cell.one { background: var(--p-lleg) !important; color: #fff; }
+.pa-side { flex: 1; min-width: 220px; }
+.pa-cap { font-family: var(--mono); font-size: 0.9rem; min-height: 3.2em; }
+.pgrid.hand .cell { cursor: pointer; }
+.pgrid.hand .cell:hover { box-shadow: inset 0 0 0 2px var(--stencil); }
+.pgrid .cell.wrongcell { box-shadow: 0 0 0 3px var(--bad); z-index: 1; }
+.takeaway { border: 2px solid var(--good); background: var(--good-soft); border-radius: 14px; padding: 14px 18px; margin-top: 16px; max-width: 880px; }
+.takeaway b { color: var(--good); }
+
+@media (max-width: 620px) {
+    body { font-size: 16px; }
+    main { padding: 18px 14px 50px; }
+    .pips { display: none; }
+    .stage-info { width: 100%; }
+}
+
+/* ═══ LAYOUT CONSISTENCY (shared across all games) ═══ */
+/* text blocks use the full content width, the same in every game */
+.lead, .mara, .task, .takeaway, .map-table, .why, .feedback, .caption { max-width: none; }
+@media (max-width: 620px) {
+    /* top bar stays on one line on phones */
+    .topbar { flex-wrap: nowrap; gap: 10px; padding: 10px 14px; }
+    .topbar .title { flex: 1; min-width: 0; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .theme-btn { margin-left: auto; flex-shrink: 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<div class="topbar">
+    <a href="index.html">← All games</a>
+    <div class="title">Game 3 · <span>Shrink the Sheets</span></div>
+    <div class="pips" id="pips"></div>
+    <button class="theme-btn" onclick="toggleTheme()" title="Light / dark">◐</button>
+</div>
+
+<main>
+
+<!-- ═══ HOOK ═══ -->
+<section class="screen active" id="s-hook">
+    <h1>The inspector is too fussy 😬</h1>
+    <p class="lead">The two-layer inspector from Game 2 is on the line. It never lets a jumble through, but it has two problems.</p>
+    <div class="mara">
+        <div class="avatar">👷</div>
+        <div class="bubble"><div class="who">MARA · LINE SUPERVISOR</div>
+            It keeps throwing out <b>good Robos</b> when the assembly arm puts a part one square off. And the engineers grumble that its Robo filter is <b>as big as the Robo itself</b>. Can we loosen it up?</div>
+    </div>
+    <div class="row" style="align-items:center;">
+        <div class="col"><div class="label">A good Robo, left leg one square low</div><div id="hookTray"></div></div>
+        <div class="col"><div class="label">What Game 2's inspector wrote</div><div id="hookRobo"></div><div id="hookVerdict"></div></div>
+    </div>
+    <p style="margin-top:14px;"><b>An idea:</b> what if each part sheet only said "a part was found <em>somewhere around here</em>" instead of "exactly here"?</p>
+    <div class="actions"><button class="btn primary" onclick="startHand()">Try it by hand →</button></div>
+</section>
+
+<!-- ═══ STEP 1: SHRINK A SHEET BY HAND ═══ -->
+<section class="screen" id="s-hand">
+    <h2>Step 1: shrink a sheet by hand</h2>
+    <p class="lead">Here's a corner of the left-leg sheet. You'll turn it into a smaller sheet that only says "was a leg found somewhere around here?"</p>
+    <div class="task"><b>Task:</b> Each small square looks at a 3 × 3 window of the big sheet (point at it to see its window). <b>Click</b> every small square whose window contains a 1, then press <b>Check</b>.</div>
+    <div class="pool-anim">
+        <div class="col"><div class="label">Left-leg sheet (6 × 6 corner)</div><div class="grid pgrid" id="handIn"></div></div>
+        <div class="op">→</div>
+        <div class="col"><div class="label">Your small sheet (3 × 3)</div><div class="grid pgrid hand" id="handOut"></div></div>
+        <div class="col pa-side"><div class="pa-cap" id="handCap">Point at a small square to see its window.</div>
+            <div class="actions" style="margin-top:0;"><button class="btn primary" onclick="checkHand()">Check</button><button class="btn" onclick="showHand()">💡 Show me</button></div></div>
+    </div>
+    <div class="feedback" id="handMsg"></div>
+    <div class="actions"><button class="btn primary" id="btnHand" onclick="startTune()" disabled>Add it to the inspector →</button></div>
+</section>
+
+<!-- ═══ STEP 3: HOW MUCH POOLING? ═══ -->
+<section class="screen" id="s-tune">
+    <h2>Step 2: add the shrinking step to the inspector</h2>
+    <p class="lead">It goes in as a new stage 4, between the activation and layer 2. Each sheet gets shrunk the way you just did it by hand, and layer 2 reads the small sheets.</p>
+    <div class="task"><b>Task:</b> Choose how much to shrink the sheets, so the inspector <b>keeps both good Robos</b> and <b>rejects both bad trays</b>. Watch what happens to the size of the Robo filter. Click a tray to see its stages.</div>
+    <div class="label">Shrinking step between the layers</div>
+    <div class="strict" id="strict" style="margin:8px 0 16px;">
+        <button class="btn" data-m="none" onclick="setMode('none')">✕ Don't shrink</button>
+        <button class="btn" data-m="pool" onclick="setMode('pool')">▦ Shrink each sheet (10 × 10 → 5 × 5)</button>
+        <button class="btn" data-m="global" onclick="setMode('global')">■ Squash each sheet to one number</button>
+    </div>
+    <div class="trays" id="tuneTrays"></div>
+    <div class="feedback" id="tuneMsg"></div>
+    <div class="label" id="tuneStagesLabel" style="margin-top:14px;"></div>
+    <div class="stages" id="tuneStages"></div>
+    <div class="actions"><button class="btn primary" id="btnTune" onclick="showScore()" disabled>Next →</button></div>
+</section>
+
+<!-- ═══ SCORE ═══ -->
+<section class="screen" id="s-score">
+    <h1>Inspector approved ✅</h1>
+    <p class="lead">Your inspector finds the parts, shrinks what it found, and then checks how the parts are arranged. It allows a little wobble without accepting a jumble.</p>
+    <div class="mara">
+        <div class="avatar">👷</div>
+        <div class="bubble"><div class="who">MARA</div>Brilliant. Four small stencils, one shrinking step, and one small Robo filter, and it copes with sloppy assembly.</div>
+    </div>
+    <div class="actions"><button class="btn primary" onclick="startReveal()">What did I just add? →</button></div>
+</section>
+
+<!-- ═══ REVEAL ═══ -->
+<section class="screen" id="s-reveal">
+    <div class="stepper-dots" id="revealDots"></div>
+    <div id="revealBody"></div>
+    <div class="actions">
+        <button class="btn" id="revealBack" onclick="revealStep(-1)">← Back</button>
+        <button class="btn primary" id="revealNext" onclick="revealStep(1)">Next →</button>
+    </div>
+</section>
+
+</main>
+
+<script>
+// ═══ DATA ═══
+// Each part is a tetromino inside a 3 × 3 stencil. Head and body are the same T, turned two ways.
+const PARTS = {
+    head: { name: 'Head',      tag: 'H',  w: [[1, 1, 1], [0, 1, 0], [0, 0, 0]] },
+    body: { name: 'Body',      tag: 'B',  w: [[0, 1, 0], [1, 1, 1], [0, 0, 0]] },
+    lleg: { name: 'Left leg',  tag: 'LL', w: [[0, 0, 1], [0, 0, 1], [0, 1, 1]] },
+    rleg: { name: 'Right leg', tag: 'RL', w: [[1, 0, 0], [1, 0, 0], [1, 1, 0]] },
+};
+const PART_KEYS = Object.keys(PARTS);
+// Top-left corner of each part's stencil window inside a 7 × 7 Robo. All corners are even,
+// so after pooling (window 3, jump 2) each part lands on its own square: head (0,1), body (1,1),
+// legs (2,0) and (2,2). The outline has exactly one tiling.
+const ROBO = { head: [0, 2], body: [2, 2], lleg: [4, 0], rleg: [4, 4] };
+const LOWLEG = { ...ROBO, lleg: [5, 0] };                                   // left leg one square low
+const JUMBLED = { head: [4, 2], body: [2, 2], lleg: [0, 0], rleg: [0, 4] };   // same parts, legs on top
+const HEADLESS = { body: [2, 2], lleg: [4, 0], rleg: [4, 4] };
+const N = 12, M = N - 2;   // photo 12 × 12; layer-1 sheets 10 × 10
+
+// Step 1: a 6 × 6 corner of a left-leg sheet with two marks. The mark at (3, 2) sits where two windows
+// overlap, so it shows up twice in the small sheet.
+const HAND_MARKS = [[3, 2], [0, 4]];
+const TRAYS = [
+    { name: 'Robo, moved over',          layout: ROBO,     at: [3, 2], keep: true },
+    { name: 'Robo, one leg a square low', layout: LOWLEG,  at: [1, 4], keep: true },
+    { name: 'Parts jumbled',              layout: JUMBLED,  at: [2, 3], keep: false },
+    { name: 'Head missing',               layout: HEADLESS, at: [2, 1], keep: false },
+];
+
+// Pooling between the layers, and the Robo filter size each choice needs.
+const MODES = {
+    none:   { k: 5, label: 'no pooling',               slot: p => ROBO[p] },
+    pool:   { k: 3, label: 'window 3 × 3, jump 2',     slot: p => [ROBO[p][0] / 2, ROBO[p][1] / 2] },
+    global: { k: 1, label: 'one number per sheet',     slot: () => [0, 0] },
+};
+
+// ═══ ENGINE: a real two-layer CNN ═══
+const $ = id => document.getElementById(id);
+const blank = (h, w = h, v = 0) => Array.from({ length: h }, () => Array(w).fill(v));
+const partCells = (p, a, b) => { const o = []; PARTS[p].w.forEach((row, i) => row.forEach((v, j) => { if (v) o.push([a + i, b + j]); })); return o; };
+function buildTray(layout, [dr, dc]) {
+    const g = blank(N), owner = blank(N, N, null);
+    for (const p in layout) for (const [r, c] of partCells(p, layout[p][0] + dr, layout[p][1] + dc)) { g[r][c] = 1; owner[r][c] = p; }
+    return { g, owner };
+}
+// Layer 1 = convolution: each 3 × 3 stencil writes a count (0–4) at every position.
+function counts(g, p) {
+    const w = PARTS[p].w;
+    return Array.from({ length: M }, (_, r) => Array.from({ length: M }, (_, c) => {
+        let s = 0; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) s += g[r + i][c + j] * w[i][j]; return s;
+    }));
+}
+// Activation: keep only full matches (4 → 1, anything less → 0). Same as ReLU(count − 3).
+const activate = m => m.map(row => row.map(v => Math.max(0, v - 3)));
+// Pooling: max over a 3 × 3 window that jumps 2 squares (padding 1), 10 × 10 → 5 × 5.
+function pool(m, mode) {
+    if (mode === 'none') return m;
+    if (mode === 'global') return [[Math.max(...m.flat())]];
+    const n = m.length, o = Math.floor((n - 1) / 2) + 1;
+    return Array.from({ length: o }, (_, R) => Array.from({ length: o }, (_, C) => {
+        let v = 0;
+        for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const r = 2 * R + i, c = 2 * C + j; if (r >= 0 && c >= 0 && r < n && c < n) v = Math.max(v, m[r][c]); }
+        return v;
+    }));
+}
+// Layer 2 = convolution over all four pooled sheets at once. The Robo filter has one slice per
+// part sheet, with a 1 where that part should be; at each position it adds up what's under its slots.
+function inspect(g, mode) {
+    const cnt = {}, act = {}, pooled = {};
+    for (const p of PART_KEYS) { cnt[p] = counts(g, p); act[p] = activate(cnt[p]); pooled[p] = pool(act[p], mode); }
+    const k = MODES[mode].k, n = pooled.head.length, out = n - k + 1;
+    const sheet = blank(out);
+    let best = null;
+    for (let R = 0; R < out; R++) for (let C = 0; C < out; C++) {
+        let s = 0; const missing = [];
+        for (const p of PART_KEYS) { const [a, b] = MODES[mode].slot(p); if (pooled[p][R + a][C + b]) s++; else missing.push(p); }
+        sheet[R][C] = s;
+        if (!best || s > best.s) best = { s, pos: [R, C], missing };
+    }
+    return { cnt, act, pooled, sheet, pass: best.s === 4, ...best };
+}
+// Which photo squares belong to each part the Robo filter used (to ring them on the photo).
+function usedAnchors(res, mode) {
+    const out = {};
+    for (const p of PART_KEYS) {
+        if (res.missing.includes(p)) continue;
+        const [a, b] = MODES[mode].slot(p), R = res.pos[0] + a, C = res.pos[1] + b;
+        const marks = [];
+        res.act[p].forEach((row, r) => row.forEach((v, c) => { if (v) marks.push([r, c]); }));
+        const hit = mode === 'none' ? marks.find(([r, c]) => r === R && c === C)
+            : mode === 'pool' ? marks.find(([r, c]) => Math.abs(r - 2 * R) <= 1 && Math.abs(c - 2 * C) <= 1)
+            : marks[0];
+        if (hit) out[p] = hit;
+    }
+    return out;
+}
+
+// ═══ RENDER HELPERS ═══
+function partIcon(p, big = false) {
+    return `<span class="part-icon${big ? ' big' : ''}">` + PARTS[p].w.flat().map(v => `<i style="${v ? `background:var(--p-${p})` : ''}"></i>`).join('') + `</span>`;
+}
+function gridEl(rows, cols, cls, cellFn) {
+    const g = document.createElement('div');
+    g.className = 'grid ' + cls;
+    g.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const d = document.createElement('div'); d.className = 'cell'; cellFn(d, r, c); g.appendChild(d); }
+    return g;
+}
+function photoEl(tray, mark = null) {
+    return gridEl(N, N, '', (d, r, c) => { if (tray.g[r][c]) d.classList.add('lit'); if (mark && mark[r][c]) d.classList.add(mark[r][c]); });
+}
+function sheetCardEl(p, m, { pooledView = false, used = null, want = null } = {}) {
+    const card = document.createElement('div');
+    card.className = 'sheet-card';
+    const found = m.flat().filter(v => v).length;
+    card.innerHTML = `<div class="head">${partIcon(p)} ${PARTS[p].name}${pooledView ? '' : ` <span class="muted">(${found} ${found === 1 ? 'match' : 'matches'})</span>`}</div>`;
+    if (m.length === 1) {
+        const d = document.createElement('div');
+        d.className = 'pooled-one' + (m[0][0] ? '' : ' no');
+        if (m[0][0]) d.style.background = `var(--p-${p})`;
+        d.textContent = m[0][0];
+        card.appendChild(d);
+        return card;
+    }
+    card.appendChild(gridEl(m.length, m.length, 'small' + (pooledView ? ' pooled' : ''), (d, r, c) => {
+        if (m[r][c]) d.classList.add('mark', 'pc-' + p);
+        if (used && used[0] === r && used[1] === c) d.classList.add('used');
+        if (want && want[0] === r && want[1] === c) d.classList.add('want');
+    }));
+    return card;
+}
+function robofilterEl(mode) {
+    const k = MODES[mode].k;
+    const el = document.createElement('div');
+    el.className = 'rfilter k' + k;
+    const g = document.createElement('div');
+    g.className = 'grid';
+    g.style.gridTemplateColumns = `repeat(${k}, auto)`;
+    for (let r = 0; r < k; r++) for (let c = 0; c < k; c++) {
+        const d = document.createElement('div');
+        d.className = 'cell';
+        const here = PART_KEYS.filter(p => { const [a, b] = MODES[mode].slot(p); return a === r && b === c; });
+        if (k === 1) d.innerHTML = here.map(p => `<b class="pc-${p}">${PARTS[p].tag}</b>`).join('');
+        else if (here.length) { d.classList.add('pc-' + here[0]); d.textContent = PARTS[here[0]].tag; }
+        g.appendChild(d);
+    }
+    el.appendChild(g);
+    el.insertAdjacentHTML('beforeend', `<div class="cap">Robo filter · ${k} × ${k} × 4<br>one slice per part sheet</div>`);
+    return el;
+}
+function roboSheetEl(res, mode) {
+    const n = res.sheet.length;
+    return gridEl(n, n, 'robo-sheet k' + MODES[mode].k, (d, r, c) => {
+        const v = res.sheet[r][c];
+        d.classList.add('v' + v);
+        if (res.pos[0] === r && res.pos[1] === c) d.classList.add('best');
+        d.textContent = v;
+    });
+}
+function stageEl(num, title, sub, text, visEls, off = false) {
+    const s = document.createElement('div');
+    s.className = 'stage' + (off ? ' off' : '');
+    s.innerHTML = `<div class="stage-num">${num}</div><div class="stage-info"><div class="stage-title"><small>${sub}</small>${title}</div><div class="stage-text">${text}</div></div>`;
+    const v = document.createElement('div');
+    v.className = 'stage-vis';
+    visEls.forEach(e => typeof e === 'string' ? v.insertAdjacentHTML('beforeend', e) : v.appendChild(e));
+    s.appendChild(v);
+    return s;
+}
+// The four count sheets (0–4) in a swipeable strip: swipe, scroll, arrows or dots.
+function countsCarousel(res) {
+    const wrap = document.createElement('div');
+    wrap.className = 'carousel';
+    const track = document.createElement('div');
+    track.className = 'car-track';
+    for (const p of PART_KEYS) {
+        const card = document.createElement('div');
+        card.className = 'sheet-card';
+        card.innerHTML = `<div class="head">${partIcon(p)} ${PARTS[p].name} stencil's counts (0–4)</div>`;
+        const m = res.cnt[p];
+        card.appendChild(gridEl(M, M, 'small counts', (d, r, c) => { d.classList.add('v' + m[r][c]); if (m[r][c] === 4) d.classList.add('pc-' + p); d.textContent = m[r][c]; }));
+        track.appendChild(card);
+    }
+    const prev = Object.assign(document.createElement('button'), { className: 'car-btn', textContent: '‹', title: 'Previous sheet' });
+    const next = Object.assign(document.createElement('button'), { className: 'car-btn', textContent: '›', title: 'Next sheet' });
+    const row = document.createElement('div');
+    row.className = 'car-row';
+    row.append(prev, track, next);
+    const dots = document.createElement('div');
+    dots.className = 'car-dots';
+    const dotBtns = PART_KEYS.map((p, i) => {
+        const b = document.createElement('button');
+        b.style.background = `var(--p-${p})`;
+        b.title = PARTS[p].name;
+        b.onclick = () => go(i);
+        return b;
+    });
+    const label = document.createElement('span');
+    dots.append(...dotBtns, label);
+    const idx = () => track.clientWidth ? Math.round(track.scrollLeft / track.clientWidth) : 0;
+    const go = i => track.scrollTo({ left: Math.max(0, Math.min(3, i)) * track.clientWidth });
+    const sync = () => {
+        const i = idx();
+        dotBtns.forEach((b, k) => b.classList.toggle('on', k === i));
+        prev.disabled = i === 0; next.disabled = i === 3;
+        label.textContent = `${i + 1} / 4 · swipe or use the arrows`;
+    };
+    prev.onclick = () => go(idx() - 1);
+    next.onclick = () => go(idx() + 1);
+    track.addEventListener('scroll', () => requestAnimationFrame(sync));
+    wrap.append(row, dots);
+    sync();
+    return wrap;
+}
+// Layer 2 as an animation: the filter window slides over all four sheets in step; at each stop
+// the slot squares light up, the values under them are added, and the total lands in the Robo sheet.
+let l2Tok = 0;
+function layer2Anim(res, mode, startBlank) {
+    const k = MODES[mode].k, n = res.pooled.head.length, out = res.sheet.length;
+    const wrap = document.createElement('div');
+    wrap.className = 'l2anim';
+    const ins = document.createElement('div');
+    ins.className = 'l2-row';
+    const cellsOf = {};
+    for (const p of PART_KEYS) {
+        const card = sheetCardEl(p, res.pooled[p], { pooledView: mode !== 'none' });
+        const g = card.querySelector('.grid');
+        cellsOf[p] = g ? g.children : [card.querySelector('.pooled-one')];
+        ins.appendChild(card);
+    }
+    const outRow = document.createElement('div');
+    outRow.className = 'l2-row';
+    const sheet = roboSheetEl(res, mode);
+    const sheetCells = sheet.children;
+    outRow.append(robofilterEl(mode));
+    outRow.insertAdjacentHTML('beforeend', '<span class="arrow">→</span>');
+    outRow.appendChild(sheet);
+    const side = document.createElement('div');
+    side.className = 'col';
+    side.style.gap = '6px';
+    const cap = document.createElement('div');
+    cap.className = 'l2-cap';
+    const btns = document.createElement('div');
+    btns.className = 'actions';
+    btns.style.marginTop = '0';
+    const playBtn = Object.assign(document.createElement('button'), { className: 'btn primary', textContent: '▶ Watch it slide' });
+    btns.appendChild(playBtn);
+    side.append(cap, btns);
+    outRow.appendChild(side);
+    wrap.append(ins, outRow);
+
+    let tinted = [];   // slot squares painted with their part's faded colour
+    const clear = () => {
+        for (const p of PART_KEYS) for (const d of cellsOf[p]) d.classList.remove('win', 'slot', 'hit');
+        for (const d of sheetCells) d.classList.remove('here');
+        tinted.forEach(d => d.style.background = ''); tinted = [];
+    };
+    const blankSheet = () => { for (const d of sheetCells) { d.className = 'cell empty'; d.textContent = '·'; } };
+    const fillAll = () => res.sheet.forEach((row, r) => row.forEach((v, c) => { const d = sheetCells[r * out + c]; d.className = 'cell v' + v + (res.pos[0] === r && res.pos[1] === c ? ' best' : ''); d.textContent = v; }));
+    cap.textContent = startBlank ? '' : 'Press play to watch the filter slide over the sheets.';
+    if (startBlank) blankSheet();
+    async function play() {
+        const tok = ++l2Tok;
+        clear(); blankSheet();
+        const T = out * out > 16 ? { lo: 170, three: 700, four: 1400 } : { lo: 650, three: 1000, four: 1800 };   // few positions → slower steps
+        for (let R = 0; R < out; R++) for (let C = 0; C < out; C++) {
+            clear();
+            const parts = [];
+            for (const p of PART_KEYS) {
+                const [a, b] = MODES[mode].slot(p), cells = cellsOf[p];
+                for (let i = 0; i < k; i++) for (let j = 0; j < k; j++) cells[(R + i) * n + C + j].classList.add('win');
+                const slot = cells[(R + a) * n + C + b], hit = res.pooled[p][R + a][C + b] > 0;
+                slot.classList.add('slot');
+                if (hit) slot.classList.add('hit');
+                else if (!slot.classList.contains('pooled-one')) {   // show the filter's slot in its part's colour, faded
+                    slot.style.background = `color-mix(in srgb, var(--p-${p}) 38%, var(--surface2))`;
+                    tinted.push(slot);
+                }
+                parts.push(`<span class="${hit ? 't-ok' : 't-no'}">${PARTS[p].tag} ${hit ? 1 : 0}</span>`);
+            }
+            const v = res.sheet[R][C], d = sheetCells[R * out + C];
+            d.className = 'cell v' + v + ' here'; d.textContent = v;
+            cap.innerHTML = `${parts.join(' + ')} = <b>${v}</b>`;
+            await wait(v === 4 ? T.four : v === 3 ? T.three : T.lo);
+            if (tok !== l2Tok) return false;
+        }
+        clear(); fillAll();
+        cap.innerHTML = !res.pass ? `Done. The best is <b>${res.s}</b>: no position has all four parts in their slots.`
+            : mode === 'none' ? 'Done. The <b>4</b> is the one position where all four parts sit exactly in their slots.'
+            : mode === 'pool' ? 'Done. The <b>4</b> is where all four parts sit in their slots, and after shrinking each slot means "around here".'
+            : 'Done. All four sheets say "found somewhere", so the total is <b>4</b>, whatever the arrangement.';
+        return true;
+    }
+    playBtn.onclick = () => play();
+    wrap.play = play;
+    return wrap;
+}
+// All pipeline stages for one tray. from = first stage to show (1 = photo).
+function buildStages(tray, mode, { from = 1, showCounts = true, animate = false } = {}) {
+    const res = inspect(tray.g, mode), k = MODES[mode].k;
+    const used = usedAnchors(res, mode);
+    const mark = blank(N, N, null);
+    for (const p of PART_KEYS) {
+        if (used[p]) partCells(p, ...used[p]).forEach(([a, b]) => mark[a][b] = 'ok');
+    }
+    const stages = [];
+    if (from <= 1) stages.push(stageEl(1, 'The photo', 'input', `A ${N} × ${N} grid of squares: plastic or empty.`, [photoEl(tray, res.pass ? mark : null)]));
+    if (from <= 2) {
+        const vis = PART_KEYS.map(p => partIcon(p, true));
+        if (showCounts) {
+            vis.push('<span class="arrow">→</span>');
+            vis.push(countsCarousel(res));
+        }
+        stages.push(stageEl(2, 'Four part stencils slide over the photo', 'layer 1 · convolution',
+            `Each 3 × 3 stencil writes a count at every position. That gives four ${M} × ${M} sheets.`, vis));
+    }
+    if (from <= 3) stages.push(stageEl(3, 'Activation', 'activation',
+        'In our example, only the squares with a 4 get filled (● = part found). Everything else becomes 0.',
+        PART_KEYS.map(p => sheetCardEl(p, res.act[p]))));
+    if (from <= 4) {
+        const n = res.pooled.head.length;
+        stages.push(stageEl(4, mode === 'none' ? 'No shrinking' : mode === 'pool' ? 'Shrink each sheet' : 'Squash each sheet to one number', 'shrinking step',
+            mode === 'none' ? 'The sheets go to layer 2 unchanged.'
+                : mode === 'pool' ? `A 3 × 3 window jumps 2 squares at a time and keeps the biggest value it sees: ${M} × ${M} → ${n} × ${n}. Each square now means "found somewhere around here".`
+                : 'Each sheet becomes a single number: was this part found anywhere at all?',
+            mode === 'none' ? ['<span class="muted">→ the same four sheets as stage 3</span>'] : PART_KEYS.map(p => sheetCardEl(p, res.pooled[p], { pooledView: true })), mode === 'none'));
+    }
+    if (from <= 5) {
+        const anim = layer2Anim(res, mode, animate);
+        const st = stageEl(5, 'The Robo filter slides over all four sheets', 'layer 2 · convolution',
+            `The filter has one slice per sheet, with a 1 at that part's slot (outlined). At each position it adds up the four values under its slots and writes the total (0–4) into the Robo sheet.`,
+            [anim]);
+        st.anim = anim;
+        stages.push(st);
+    }
+    if (from <= 6) stages.push(stageEl(6, res.pass ? 'Robo found ✓' : 'No Robo ✗', 'output',
+        `The biggest value on the Robo sheet is <b>${res.s}</b>. Only a 4 (all four parts in place) counts as a Robo.`,
+        [`<div class="verdict ${res.pass ? 'yes' : 'no'}">${res.pass ? '✓ Robo' : '✗ No Robo'}</div>`]));
+    return { res, stages };
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+// ═══ SCREENS ═══
+const SCREENS = ['s-hook', 's-hand', 's-tune', 's-score', 's-reveal'];
+const PIP_TITLES = ['Too fussy', 'Shrink a sheet by hand', 'Add it to the inspector', 'Score', 'What did I just add?'];
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+    const idx = SCREENS.indexOf(id);
+    $('pips').innerHTML = SCREENS.map((_, i) => `<button class="pip${i < idx ? ' done' : i === idx ? ' now' : ''}" title="${PIP_TITLES[i]}" aria-label="Go to: ${PIP_TITLES[i]}" onclick="goTo(${i})"></button>`).join('');
+    window.scrollTo(0, 0);
+    poolTok++; l2Tok++; handTok++;   // stop any animation still running on the old screen
+}
+// Clicking a dot jumps to that screen; each entry sets up what the screen needs.
+const ENTER = {
+    's-hook': () => showScreen('s-hook'),
+    's-hand': () => startHand(),
+    's-tune': () => startTune(),
+    's-score': () => showScore(),
+    's-reveal': () => startReveal(),
+};
+function goTo(i) { ENTER[SCREENS[i]](); }
+
+// ═══ HOOK ═══
+function renderHook() {
+    const t = TRAYS[1], tray = buildTray(t.layout, t.at), res = inspect(tray.g, 'none');
+    $('hookTray').appendChild(photoEl(tray));
+    $('hookRobo').appendChild(robofilterEl('none'));
+    $('hookRobo').insertAdjacentHTML('beforeend', '<span class="arrow">→</span>');
+    $('hookRobo').appendChild(roboSheetEl(res, 'none'));
+    $('hookRobo').style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;';
+    $('hookVerdict').innerHTML = `<div class="verdict no" style="margin-top:8px;">✗ No Robo (best is ${res.s})</div>`;
+}
+
+// ═══ STEP 1: SHRINK A SHEET BY HAND ═══
+const HN = 6;
+const handIn = blank(HN); HAND_MARKS.forEach(([r, c]) => handIn[r][c] = 1);
+const handTruth = pool(handIn, 'pool');           // 3 × 3
+const handGuess = blank(3);
+let handDone = false, handTok = 0;
+function startHand() { showScreen('s-hand'); renderHand(); }
+function handWindow(R, C) {
+    const ins = $('handIn').children;
+    for (const d of ins) d.classList.remove('win');
+    for (const d of $('handOut').children) d.classList.remove('here');
+    if (R === null) return;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+        const y = 2 * R + a, x = 2 * C + b;
+        if (y >= 0 && x >= 0 && y < HN && x < HN) ins[y * HN + x].classList.add('win');
+    }
+    $('handOut').children[R * 3 + C].classList.add('here');
+    const rows = [Math.max(0, 2 * R - 1) + 1, Math.min(HN - 1, 2 * R + 1) + 1], cols = [Math.max(0, 2 * C - 1) + 1, Math.min(HN - 1, 2 * C + 1) + 1];
+    $('handCap').textContent = `This square looks at rows ${rows[0]}–${rows[1]}, columns ${cols[0]}–${cols[1]} of the big sheet.`;
+}
+function renderHand() {
+    paGrid($('handIn'), HN, (d, r, c) => { d.className = 'cell' + (handIn[r][c] ? ' one' : ''); d.textContent = handIn[r][c]; });
+    paGrid($('handOut'), 3, (d, r, c) => {
+        d.className = 'cell' + (handGuess[r][c] ? ' one' : ' empty');
+        d.textContent = handGuess[r][c] ? 1 : '·';
+        d.onmouseenter = () => handWindow(r, c);
+        d.onclick = () => { if (handDone) return; handGuess[r][c] = 1 - handGuess[r][c]; renderHand(); handWindow(r, c); };
+    });
+    $('handOut').onmouseleave = () => handWindow(null);
+}
+function checkHand() {
+    if (handDone) return;
+    // ring only the squares filled by mistake; just count the ones still missing, so the answer isn't given away
+    const extra = [], missing = [];
+    handTruth.forEach((row, r) => row.forEach((v, c) => { if (handGuess[r][c] && !v) extra.push(r * 3 + c); if (v && !handGuess[r][c]) missing.push(r * 3 + c); }));
+    const outs = $('handOut').children;
+    for (const d of outs) d.classList.remove('wrongcell');
+    const msg = $('handMsg');
+    if (!extra.length && !missing.length) return finishHand('✓ Right!');
+    extra.forEach(i => outs[i].classList.add('wrongcell'));
+    const parts = [];
+    if (extra.length) parts.push(`${extra.length} filled square${extra.length > 1 ? 's have' : ' has'} no 1 in ${extra.length > 1 ? 'their windows' : 'its window'} (red ring)`);
+    if (missing.length) parts.push(`${missing.length} square${missing.length > 1 ? 's' : ''} whose window contains a 1 ${missing.length > 1 ? 'are' : 'is'} still empty`);
+    msg.className = 'feedback no';
+    msg.textContent = `✗ Not yet: ${parts.join(', and ')}. Point at the small squares to see their windows.`;
+}
+async function showHand() {
+    if (handDone) return;
+    const tok = ++handTok;
+    for (let R = 0; R < 3; R++) for (let C = 0; C < 3; C++) {
+        handGuess[R][C] = handTruth[R][C];
+        renderHand(); handWindow(R, C);
+        await wait(handTruth[R][C] ? 1100 : 600);
+        if (tok !== handTok) return;
+    }
+    handWindow(null);
+    finishHand('Here it is.');
+}
+function finishHand(lead) {
+    handDone = true;
+    renderHand();
+    const msg = $('handMsg');
+    msg.className = 'feedback ok';
+    msg.innerHTML = `${lead} 36 squares became 9. And look at the 1 on row 4: it sits where two windows overlap, so it shows up in <b>two</b> small squares. That overlap is what will forgive a leg that's one square off.`;
+    $('btnHand').disabled = false;
+}
+
+// ═══ STEP 3: HOW MUCH POOLING? ═══
+let mode = 'none', tuneSel = 1, tuneWon = false;
+const TUNE_TRAYS = TRAYS.map(t => buildTray(t.layout, t.at));
+function startTune() { showScreen('s-tune'); setMode(mode); }
+function setMode(m) {
+    mode = m;
+    document.querySelectorAll('#strict .btn').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    renderTune();
+}
+function renderTune() {
+    l2Tok++;
+    const box = $('tuneTrays');
+    box.innerHTML = '';
+    let allMatch = true;
+    TRAYS.forEach((t, i) => {
+        const res = inspect(TUNE_TRAYS[i].g, mode), match = res.pass === t.keep;
+        if (!match) allMatch = false;
+        const card = document.createElement('div');
+        card.className = 'tray-card' + (i === tuneSel ? ' sel' : '') + (match ? ' match' : ' mismatch');
+        card.innerHTML = `<div class="name">${t.name}</div>`;
+        card.appendChild(photoEl(TUNE_TRAYS[i]));
+        card.insertAdjacentHTML('beforeend', `<div class="line muted">Mara: ${t.keep ? 'keep it' : 'reject it'}</div>` +
+            `<div class="line ${match ? 'good' : 'bad'}">Inspector: ${res.pass ? '✓ Robo' : '✗ no Robo'} ${match ? '' : '← wrong'}</div>`);
+        card.onclick = () => { tuneSel = i; renderTune(); };
+        box.appendChild(card);
+    });
+    const msg = $('tuneMsg');
+    if (allMatch) {
+        msg.className = 'feedback ok';
+        msg.innerHTML = '✓ All four right. After shrinking, a part one square off still lands on the square the Robo filter expects, but the parts still have to be in the right arrangement. And the Robo filter only needs to be 3 × 3.';
+        tuneWon = true;
+    } else if (mode === 'none') {
+        msg.className = 'feedback no';
+        msg.textContent = '✗ Without shrinking, the Robo filter needs every part on its exact square, so the Robo with the low leg is thrown out.';
+    } else {
+        msg.className = 'feedback no';
+        msg.textContent = '✗ Squashed to one number, each sheet only says whether a part exists, not where. The Robo filter shrinks to 1 × 1 and just counts parts, so the jumbled tray passes.';
+    }
+    $('btnTune').disabled = !tuneWon;
+    $('tuneStagesLabel').textContent = `Stages 4–6 for "${TRAYS[tuneSel].name}"`;
+    const { stages } = buildStages(TUNE_TRAYS[tuneSel], mode, { from: 4 });
+    $('tuneStages').innerHTML = '';
+    stages.forEach(s => { s.style.animation = 'none'; $('tuneStages').appendChild(s); });
+}
+function showScore() { showScreen('s-score'); }
+
+// ═══ REVEAL ═══
+function miniGrid(vals, cellFn, size) {
+    return `<div class="grid small" style="grid-template-columns:repeat(${vals[0].length},auto);--ms:${size}px">` +
+        vals.flat().map((v, i) => `<div class="cell ${cellFn(v, i)}"></div>`).join('') + `</div>`;
+}
+function stackHTML(maps, size) {
+    const n = maps.head.length, w = n * (size + 2) + 10;
+    return `<div class="mini-stack" style="width:${w + 21}px;height:${w + 21}px">` + PART_KEYS.map((p, i) =>
+        `<div style="left:${i * 7}px;top:${i * 7}px">${miniGrid(maps[p], v => v ? 'pc-' + p : '', size)}</div>`).join('') + `</div>`;
+}
+function flowHTML() {
+    const tr = TUNE_TRAYS[0], res = inspect(tr.g, 'pool');
+    const photo = miniGrid(tr.g, v => v ? 'lit' : '', 7);
+    const stencils = `<div style="display:grid;grid-template-columns:auto auto;gap:4px">${PART_KEYS.map(p => partIcon(p)).join('')}</div>`;
+    const robo = miniGrid(res.sheet, v => v === 4 ? 'pc-rleg' : '', 12);
+    const verb = (t, name) => `<div class="verb"><b>→</b>${t}<i>${name}</i></div>`;
+    return `<div class="flow">
+        <div class="box">${photo}<span>photo<br>12 × 12</span></div>
+        ${verb('4 stencils slide over it', 'convolution')}
+        <div class="box">${stencils}</div>
+        ${verb('fill the 4s', 'activation')}
+        <div class="box">${stackHTML(res.act, 5)}<span>4 sheets<br>10 × 10</span></div>
+        ${verb('shrink', 'max pooling')}
+        <div class="box">${stackHTML(res.pooled, 9)}<span>4 sheets<br>5 × 5</span></div>
+        ${verb('Robo filter slides over all 4', 'convolution')}
+        <div class="box">${robo}<span>Robo sheet<br>3 × 3</span></div>
+        ${verb('biggest value = 4?', 'global max pooling')}
+        <div class="box"><div class="verdict yes" style="font-size:0.9rem;padding:6px 10px">✓ Robo</div></div>
+    </div>`;
+}
+let revealIdx = 0, poolTok = 0;
+const REVEAL = [
+    () => `
+        <h2>That step is called pooling</h2>
+        <p class="lead">Shrinking a sheet by keeping the biggest value in each window is called <b>max pooling</b>. Real CNNs put a pooling step between their convolution layers, just where you put it. Here's the first tray with pooling on:</p>
+        ${flowHTML()}
+        <table class="map-table">
+            <tr><td>Shrinking each sheet, keeping the biggest value per window</td><td>=</td><td>max pooling</td></tr>
+            <tr><td>The window jumping 2 squares at a time</td><td>=</td><td>stride 2</td></tr>
+            <tr><td>Squashing each sheet to one number</td><td>=</td><td>global max pooling</td></tr>
+        </table>`,
+    () => `
+        <h2>What pooling did, step by step</h2>
+        <p>The pooling window is 3 × 3 and jumps <b>2 squares</b> at a time. At each stop it writes down the biggest value it sees. It doesn't multiply anything. Press play:</p>
+        <div class="pool-anim">
+            <div class="col"><div class="label">Left-leg sheet (6 × 6 corner)</div><div class="grid pgrid" id="paIn"></div></div>
+            <div class="op">→</div>
+            <div class="col"><div class="label">After pooling (3 × 3)</div><div class="grid pgrid" id="paOut"></div></div>
+            <div class="col pa-side"><div class="pa-cap" id="paCap"></div>
+                <div class="actions" style="margin-top:0;"><button class="btn primary" onclick="playPool()">▶ Play</button><button class="btn" onclick="resetPool()">↺ Reset</button></div></div>
+        </div>
+        <p><b>Job 1, shrinking:</b> 36 numbers became 9. Halving each side leaves a quarter of the numbers, so the next layer has far less work.</p>
+        <p><b>Job 2, tolerance:</b> the dashed square is where the Robo filter looks for the leg. The leg was found one square lower, but the windows overlap, so it still shows up in the dashed square after pooling. That's why the Robo with the low leg passed.</p>
+        <p class="muted">Pooling windows come in different sizes and jumps (called the <em>stride</em>). Ours is 3 × 3 jumping 2, so the windows overlap. The textbook version is 2 × 2 jumping 2, which doesn't overlap.</p>`,
+    () => `
+        <h2>Too little, too much</h2>
+        <p><b>No pooling:</b> the network is fussy. A part a square out of place and it stops recognising the object. Its layer-2 filters also have to be big.</p>
+        <p><b>Too much pooling:</b> the network forgets where things are. With one number per sheet it only knew that a head, a body and two legs existed, so a jumbled tray looked like a Robo.</p>
+        <p>Every CNN designer makes this trade-off: how much to pool, and at which layers.</p>
+        <div class="takeaway"><b>What this means for you:</b> pooling is how a CNN tolerates small differences (a smiling face, a product slightly rotated) and how it keeps big images affordable to process. How much to pool is a design choice someone made, and it explains a lot about what a vision system will and won't cope with.</div>`,
+    () => `
+        <h2>Coming up in Game 4</h2>
+        <p class="lead">You designed four stencils and a Robo filter by hand. A real network has thousands of filters and millions of numbers inside them. <b>Nobody draws those.</b> So where do they come from?</p>
+        <a class="btn primary" href="game4-let-it-learn.html">Play Game 4: Let It Learn →</a>`,
+];
+// pooling animation: 6 × 6 → 3 × 3, window 3 × 3 centred on every second square
+const PA_N = 6, PA_MARK = [3, 2], PA_EXPECT = [2, 2];
+const paIn = (r, c) => (r === PA_MARK[0] && c === PA_MARK[1]) ? 1 : 0;
+function paGrid(el, n, fn) {
+    el.style.gridTemplateColumns = `repeat(${n}, auto)`; el.innerHTML = '';
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) { const d = document.createElement('div'); fn(d, r, c); el.appendChild(d); }
+}
+function resetPool() {
+    poolTok++;
+    paGrid($('paIn'), PA_N, (d, r, c) => { const v = paIn(r, c); d.className = 'cell' + (v ? ' one' : '') + (r === PA_EXPECT[0] && c === PA_EXPECT[1] ? ' exp' : ''); d.textContent = v; });
+    paGrid($('paOut'), 3, (d, r, c) => { d.className = 'cell empty' + (r === PA_EXPECT[0] / 2 && c === PA_EXPECT[1] / 2 ? ' exp' : ''); d.textContent = '·'; });
+    $('paCap').textContent = 'Press play: the window stops at every second square.';
+}
+async function playPool() {
+    resetPool();
+    const tok = ++poolTok, ins = $('paIn').children, outs = $('paOut').children;
+    for (let R = 0; R < 3; R++) for (let C = 0; C < 3; C++) {
+        for (const d of ins) d.classList.remove('win');
+        for (const d of outs) d.classList.remove('here');
+        let m = 0;
+        for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+            const y = 2 * R + a, x = 2 * C + b;
+            if (y < 0 || x < 0 || y >= PA_N || x >= PA_N) continue;
+            ins[y * PA_N + x].classList.add('win'); m = Math.max(m, paIn(y, x));
+        }
+        const o = outs[R * 3 + C];
+        o.classList.remove('empty'); o.classList.add('here'); if (m) o.classList.add('one'); o.textContent = m;
+        $('paCap').innerHTML = `Stop ${R * 3 + C + 1} of 9, around row ${2 * R + 1}, column ${2 * C + 1}: biggest value = <b>${m}</b>`;
+        await wait(m ? 1300 : 900);
+        if (tok !== poolTok) return;
+    }
+    for (const d of ins) d.classList.remove('win');
+    for (const d of outs) d.classList.remove('here');
+    $('paCap').innerHTML = 'Done: <b>36 numbers became 9</b>, and the leg mark reached the dashed square, because two windows overlapped it.';
+}
+const REVEAL_INIT = { 1: () => resetPool() };
+function startReveal() { revealIdx = 0; showScreen('s-reveal'); renderReveal(); }
+function revealStep(d) { revealIdx = Math.max(0, Math.min(REVEAL.length - 1, revealIdx + d)); renderReveal(); window.scrollTo(0, 0); }
+function renderReveal() {
+    poolTok++;
+    $('revealBody').innerHTML = REVEAL[revealIdx]();
+    if (REVEAL_INIT[revealIdx]) REVEAL_INIT[revealIdx]();
+    $('revealDots').innerHTML = REVEAL.map((_, i) => `<span class="${i <= revealIdx ? 'on' : ''}"></span>`).join('');
+    $('revealBack').disabled = revealIdx === 0;
+    $('revealNext').style.display = revealIdx === REVEAL.length - 1 ? 'none' : 'inline-block';
+}
+
+// ═══ THEME ═══
+function applyTheme(t) { document.documentElement.dataset.theme = t; }
+function toggleTheme() {
+    const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(t);
+    try { localStorage.setItem('pixeltoys-theme', t); } catch (e) {}
+}
+(function initTheme() {
+    let t = null;
+    try { t = localStorage.getItem('pixeltoys-theme'); } catch (e) {}
+    applyTheme(t || 'light');
+})();
+
+// ═══ INIT ═══
+renderHook();
+showScreen('s-hook');
+</script>
+</body>
+</html>

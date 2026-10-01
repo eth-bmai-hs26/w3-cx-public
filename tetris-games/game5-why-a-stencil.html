@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Why a Stencil?</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══ THEME ═══ */
+:root {
+    --bg: #f5f4ef; --surface: #ffffff; --surface2: #efeef5; --ink: #1c1c28; --dim: #5f5e76; --border: #dcdbe6;
+    --cell: #e6e5ee; --lit: #2a2b3d; --lit-ink: #ffffff;
+    --stencil: #5b6ee8; --stencil-soft: rgba(91, 110, 232, 0.20);
+    --good: #1a9a55; --good-soft: rgba(26, 154, 85, 0.14);
+    --bad: #d2413c; --bad-soft: rgba(210, 65, 60, 0.12);
+    --warn: #c28405;
+    --shadow: 0 6px 24px rgba(20, 20, 40, 0.08);
+    --display: 'Sora', system-ui, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --cs: clamp(24px, 3.6vw, 36px);
+    --ts: clamp(9px, 1.1vw, 12px);   /* thumbnail cell */
+}
+[data-theme="dark"] {
+    --bg: #101018; --surface: #191926; --surface2: #222233; --ink: #ecebf6; --dim: #a09fba; --border: #2e2e44;
+    --cell: #26263a; --lit: #e9e8f6; --lit-ink: #15151f;
+    --stencil: #8d9bff; --stencil-soft: rgba(141, 155, 255, 0.24);
+    --good: #3fcf82; --good-soft: rgba(63, 207, 130, 0.16);
+    --bad: #ff6b63; --bad-soft: rgba(255, 107, 99, 0.14);
+    --warn: #f0b429;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--display); font-size: 18px; line-height: 1.5; min-height: 100vh; }
+button { font-family: inherit; }
+
+/* ═══ TOP BAR ═══ */
+.topbar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.topbar a { color: var(--dim); text-decoration: none; font-size: 0.85rem; }
+.topbar a:hover { color: var(--ink); }
+.topbar .title { font-family: var(--mono); font-weight: 800; font-size: 1rem; }
+.topbar .title span { color: var(--stencil); }
+.pips { display: flex; gap: 6px; margin-left: auto; }
+.pip { width: 12px; height: 12px; border-radius: 50%; background: var(--border); border: none; padding: 0; cursor: pointer; transition: transform 0.15s; }
+.pip:hover { transform: scale(1.4); background: var(--stencil); }
+.pip:focus-visible { outline: 2px solid var(--stencil); outline-offset: 2px; }
+.pip.done { background: var(--stencil); }
+.pip.now { background: var(--stencil); box-shadow: 0 0 0 4px var(--stencil-soft); }
+.theme-btn { border: 1px solid var(--border); background: var(--surface2); color: var(--ink); border-radius: 10px; padding: 6px 10px; cursor: pointer; font-size: 0.9rem; }
+
+/* ═══ LAYOUT ═══ */
+main { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+.screen { display: none; animation: fadein 0.35s ease; }
+.screen.active { display: block; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+h1 { font-size: clamp(1.7rem, 4vw, 2.6rem); line-height: 1.15; margin-bottom: 14px; }
+h2 { font-size: clamp(1.3rem, 2.8vw, 1.8rem); margin-bottom: 10px; }
+p { margin-bottom: 10px; }
+.lead { font-size: 1.1rem; color: var(--dim); max-width: 780px; }
+.row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.col { display: flex; flex-direction: column; gap: 10px; }
+.label { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.task { border-left: 5px solid var(--stencil); background: var(--surface); border-radius: 12px; padding: 12px 16px; margin: 14px 0; box-shadow: var(--shadow); max-width: 900px; }
+.task b { color: var(--stencil); }
+.muted { color: var(--dim); }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); }
+
+/* ═══ SUPERVISOR ═══ */
+.mara { display: flex; gap: 14px; align-items: flex-start; margin: 16px 0; max-width: 840px; }
+.mara .avatar { flex-shrink: 0; width: 54px; height: 54px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 1.7rem; }
+.mara .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 4px 16px 16px 16px; padding: 12px 16px; box-shadow: var(--shadow); }
+.mara .who { font-family: var(--mono); font-size: 0.75rem; font-weight: 700; color: var(--dim); margin-bottom: 2px; }
+
+/* ═══ BUTTONS ═══ */
+.btn { border: 1px solid var(--border); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 10px 18px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: transform 0.1s, background 0.2s; text-decoration: none; display: inline-block; }
+.btn:hover { background: var(--surface2); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--stencil); border-color: var(--stencil); color: #fff; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.on { border-color: var(--stencil); background: var(--stencil-soft); box-shadow: inset 0 0 0 1px var(--stencil); }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+/* ═══ GRIDS ═══ */
+.grid { display: grid; gap: 3px; padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: max-content; }
+.cell { width: var(--cs); height: var(--cs); border-radius: 5px; background: var(--cell); position: relative; }
+.cell.lit { background: var(--lit); }
+.cell.st-on { box-shadow: inset 0 0 0 3px var(--stencil); }
+.thumb .cell { width: var(--ts); height: var(--ts); border-radius: 2px; }
+.thumb.grid { gap: 1px; padding: 3px; border-radius: 6px; }
+.grid-wrap { position: relative; display: inline-block; }
+.frame { position: absolute; border: 3px dashed var(--warn); border-radius: 8px; pointer-events: none; }
+.tcard .frame { border-width: 2px; border-radius: 4px; }
+
+/* weights heat grid */
+.wgrid { display: grid; gap: 4px; width: max-content; }
+.wcell { width: clamp(52px, 7vw, 76px); height: clamp(52px, 7vw, 76px); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 800; font-size: 1rem; border: 1px solid var(--border); background: var(--surface2); transition: background 0.3s; }
+.wcell.flash { outline: 3px solid var(--ink); outline-offset: 1px; }
+.wgrid.sm .wcell { width: 44px; height: 44px; border-radius: 8px; font-size: 0.8rem; }
+.wcell.q2 { border: 2px dashed var(--warn); }
+.wgrid.px .wcell { width: clamp(20px, 3vw, 30px); height: clamp(20px, 3vw, 30px); border-radius: 4px; font-size: 0; }
+.sorter { flex: 1; min-width: 320px; }
+.sorter .how { font-size: 0.92rem; max-width: 300px; }
+.sorter .count { font-family: var(--mono); font-size: 0.95rem; }
+.sorter .count b { font-size: 1.5rem; color: var(--stencil); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--dim); }
+.legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+
+/* ═══ PILE ═══ */
+.pile { display: grid; grid-template-columns: repeat(4, auto); gap: 8px; }
+.tcard { position: relative; border: 2px solid var(--border); background: var(--surface); border-radius: 10px; padding: 5px; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
+.tcard:hover { border-color: var(--stencil); }
+.tcard.sel { border-color: var(--stencil); box-shadow: 0 0 0 3px var(--stencil-soft); }
+.tcard .tag { font-size: 0.68rem; font-weight: 700; font-family: var(--mono); }
+.tcard .tag.t { color: var(--stencil); }
+.tcard .res { font-size: 0.68rem; font-weight: 800; font-family: var(--mono); min-height: 1.1em; }
+.tcard.right { background: var(--good-soft); border-color: var(--good); }
+.tcard.wrong { background: var(--bad-soft); border-color: var(--bad); }
+.res.right { color: var(--good); }
+.res.wrong { color: var(--bad); }
+
+/* ═══ SCORE BARS ═══ */
+.big-score { font-family: var(--mono); font-weight: 800; font-size: 2rem; }
+.sorter .big-score { font-size: 1.4rem; }
+.big-score.full { color: var(--good); }
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 90px; border-bottom: 2px solid var(--border); padding: 0 2px; min-width: 200px; }
+.bars .b { width: 14px; background: var(--stencil); border-radius: 3px 3px 0 0; }
+.bars .b.full { background: var(--good); }
+.caption { font-size: 0.95rem; min-height: 3em; max-width: 520px; }
+
+/* ═══ INSIDE ONE GUESS: pipeline stages ═══ */
+.stages { display: flex; flex-direction: column; gap: 12px; }
+.stage { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); }
+.stage-num { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: var(--stencil-soft); color: var(--stencil); font-family: var(--mono); font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.stage-info { width: 240px; flex-shrink: 0; }
+.stage.wide .stage-info { width: auto; flex: 1; }
+.stage.wide .stage-vis { display: none; }
+.stage-title { font-weight: 700; }
+.stage-title small { display: block; font-family: var(--mono); font-size: 0.72rem; font-weight: 600; color: var(--stencil); letter-spacing: 0.04em; text-transform: uppercase; }
+.stage-text { font-size: 0.86rem; color: var(--dim); }
+.stage-vis { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; flex: 1; min-width: 260px; }
+.stage .op { font-family: var(--mono); font-weight: 800; color: var(--dim); font-size: 1.3rem; }
+.stage .grid-wrap { margin: 24px 14px; }
+.stage .grid-wrap .cell { width: 20px; height: 20px; border-radius: 3px; }
+.stage .grid-wrap .grid { gap: 2px; padding: 4px; }
+.fx { font-family: var(--mono); font-size: 0.92rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; line-height: 1.7; }
+.fx b { color: var(--stencil); }
+.fx .note { display: block; font-size: 0.75rem; color: var(--dim); }
+.fmap { display: grid; gap: 2px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; width: max-content; }
+.fmap div { width: 30px; height: 22px; border-radius: 3px; font-family: var(--mono); font-size: 0.6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.fmap div.best { box-shadow: 0 0 0 2px var(--warn); z-index: 1; position: relative; }
+.bias { font-family: var(--mono); font-size: 0.8rem; color: var(--dim); }
+.verdict-pill { font-family: var(--mono); font-weight: 800; padding: 6px 12px; border-radius: 10px; display: inline-block; }
+.verdict-pill.right { background: var(--good-soft); color: var(--good); }
+.verdict-pill.wrong { background: var(--bad-soft); color: var(--bad); }
+.sig { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; }
+.sig path.curve { fill: none; stroke: var(--stencil); stroke-width: 2.5; }
+.sig line { stroke: var(--border); stroke-width: 1; }
+.sig line.half { stroke: var(--dim); stroke-dasharray: 4 3; }
+.sig circle { fill: var(--warn); }
+.sig text { fill: var(--dim); font-family: var(--mono); font-size: 9px; }
+/* tray slider on the "inside one guess" screen */
+.tray-slider { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 6px 0 14px; }
+.car-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-size: 1.1rem; font-weight: 800; cursor: pointer; }
+.car-btn:hover { background: var(--surface2); }
+.slider-now { font-family: var(--mono); font-weight: 800; min-width: 190px; text-align: center; }
+.slider-now .t { color: var(--stencil); }
+.tray-dots { display: flex; gap: 5px; }
+.tray-dots button { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface2); padding: 0; cursor: pointer; }
+.tray-dots button.t { border-color: var(--stencil); }
+.tray-dots button.on { background: var(--stencil); border-color: var(--stencil); transform: scale(1.25); }
+/* tray T-score bar */
+.tbar { position: relative; width: 100%; height: 7px; border-radius: 4px; background: var(--surface2); overflow: hidden; }
+.tbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+.tbar b { position: absolute; left: 50%; top: -1px; bottom: -1px; width: 2px; background: var(--dim); }
+/* training loop strip */
+.loop { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 14px; }
+.loop span.ph { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 7px 12px; font-size: 0.85rem; font-weight: 600; transition: background 0.2s, border-color 0.2s; }
+.loop span.ph.on { background: var(--stencil); border-color: var(--stencil); color: #fff; }
+.loop .arr { color: var(--dim); font-weight: 800; }
+.chart-val { font-family: var(--mono); font-weight: 800; font-size: 1.3rem; }
+.chart-val.full { color: var(--good); }
+.bars.loss .b { background: var(--warn); }
+
+/* ═══ TRAINING LAYOUT ═══ */
+#s-train .task { margin-bottom: 26px; }
+.train-grid { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+.train-side { flex: 1; min-width: 330px; display: flex; flex-direction: column; gap: 14px; }
+.side-card { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; }
+.side-row { display: flex; flex-wrap: wrap; gap: 22px; align-items: center; }
+#trainStencil .wcell { width: clamp(46px, 4.6vw, 60px); height: clamp(46px, 4.6vw, 60px); font-size: 0.9rem; }
+.charts { display: flex; flex-wrap: wrap; gap: 26px; }
+.chart { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 6px; }
+.chart .bars { height: 70px; min-width: 0; }
+.side-card .caption { min-height: 0; max-width: none; }
+
+/* ═══ GAME 5 ═══ */
+.sum-h { margin: 22px 0 8px; font-size: 1.15rem; }
+.sum-cards { display: flex; flex-wrap: wrap; gap: 12px; }
+.sum-card { flex: 1 1 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; font-size: 0.92rem; color: var(--dim); }
+.sum-card b { display: block; color: var(--ink); font-size: 1rem; margin-bottom: 4px; }
+.sum-table { border-collapse: collapse; width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; font-size: 0.92rem; }
+.sum-table th, .sum-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.sum-table th { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); background: var(--surface2); }
+.sum-table td:first-child { font-weight: 700; width: 16%; }
+.sum-table td:last-child { color: var(--ink); }
+.sum-list { margin: 6px 0 0 20px; display: flex; flex-direction: column; gap: 4px; }
+.sorters { display: flex; flex-wrap: wrap; gap: 18px; }
+.sorters .panel { flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 10px; }
+.how { font-size: 0.92rem; min-height: 4.2em; }
+/* both cards: picture area of equal height, then "How it decides", then the score, so they line up */
+#s-hook .sorters .panel { justify-content: flex-start; }
+#s-hook .vis-box { height: 290px; display: flex; align-items: center; justify-content: center; }
+#s-hook .score-line { margin-top: auto; }
+.picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.picker .btn { padding: 8px 14px; }
+.pad { display: grid; grid-template-columns: repeat(3, 44px); gap: 6px; justify-content: center; }
+.pad button { height: 44px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); font-size: 1.1rem; font-weight: 800; cursor: pointer; }
+.pad button:hover { background: var(--surface2); }
+.pad button:disabled { opacity: 0.3; cursor: default; }
+.cell.trained { box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--warn) 14%, transparent); }
+.cell.trained.lit { box-shadow: none; }
+.score-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bigbar { position: relative; width: 220px; height: 16px; border-radius: 8px; background: var(--surface2); overflow: hidden; border: 1px solid var(--border); }
+.bigbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 8px; transition: width 0.25s; }
+.bigbar b { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--dim); }
+.score-num { font-family: var(--mono); font-weight: 800; font-size: 1.2rem; min-width: 52px; }
+.wcell.under { box-shadow: inset 0 0 0 3px var(--ink); }
+.wgrid.px.pxn .wcell { width: clamp(30px, 4vw, 42px); height: clamp(24px, 3vw, 30px); font-size: 0.6rem; font-weight: 700; border-radius: 4px; }
+.wcell.corner { border: 2px solid var(--warn); }
+.wgrid.px.occ .wcell { font-size: 0.8rem; font-weight: 800; width: clamp(28px, 3.4vw, 40px); height: clamp(28px, 3.4vw, 40px); }
+/* screen 1: use the full width */
+#s-pile .lead, #s-pile .mara, #s-hook .mara, #s-hook .task, #s-move .lead, #s-move .task, #s-move .move-why, #s-move .feedback { max-width: none; }
+.move-layout { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; margin-top: 22px; }
+.pad-wrap { display: flex; align-items: center; gap: 18px; padding: 4px 0 0 4px; }
+#s-move .move-why { margin-top: 18px; }
+.pile-layout { display: flex; flex-wrap: wrap; gap: 28px; align-items: stretch; margin-top: 10px; }
+.occ-card { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; text-align: center; }
+.move-why { max-width: 880px; margin-top: 12px; }
+.slider-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin: 10px 0 18px; }
+#s-size .lead, #s-size .size-why { max-width: none; }
+.size-card { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.size-card input[type=range] { width: 100%; accent-color: var(--stencil); }
+.size-now { font-family: var(--mono); font-weight: 800; font-size: 1.1rem; }
+.ticks { position: relative; height: 2.8em; margin: 0 9px; }
+.ticks button { position: absolute; top: 0; transform: translateX(-50%); background: none; border: none; padding: 2px 0; font-family: var(--mono); font-size: 0.75rem; color: var(--dim); cursor: pointer; text-align: center; white-space: nowrap; }
+.ticks button:first-child { transform: translateX(-9px); text-align: left; }
+.ticks button:last-child { transform: translateX(calc(-100% + 9px)); text-align: right; }
+.ticks button.on { color: var(--stencil); font-weight: 800; }
+.count-card { display: flex; flex-direction: column; gap: 6px; }
+#s-size .ratio { margin-top: 14px; font-size: 1.1rem; }
+.size-why { margin-top: 10px; }
+@media (max-width: 620px) { .ticks { height: 5.2em; } .ticks button { white-space: normal; width: 24%; font-size: 0.62rem; } }
+.slider-row input[type=range] { width: min(420px, 100%); accent-color: var(--stencil); }
+.size-label { font-family: var(--mono); font-weight: 800; }
+.count { font-family: var(--mono); font-weight: 800; font-size: 2.2rem; color: var(--stencil); }
+.count.big { color: var(--bad); }
+.ratio { font-weight: 700; font-size: 1.05rem; margin-top: 4px; }
+
+/* ═══ CHOICES ═══ */
+.choices { display: flex; flex-wrap: wrap; gap: 12px; }
+.choice { border: 2px solid var(--border); background: var(--surface); border-radius: 14px; padding: 12px 16px; cursor: pointer; font-weight: 600; max-width: 280px; }
+.choice:hover { border-color: var(--stencil); }
+.choice.picked { border-color: var(--stencil); background: var(--stencil-soft); }
+.vs { display: flex; flex-wrap: wrap; gap: 20px; }
+.feedback { font-weight: 600; min-height: 1.6em; margin-top: 10px; max-width: 860px; }
+.feedback.ok { color: var(--good); }
+
+/* ═══ REVEAL ═══ */
+.stepper-dots { display: flex; gap: 8px; margin: 6px 0 16px; }
+.stepper-dots span { width: 34px; height: 6px; border-radius: 3px; background: var(--border); }
+.stepper-dots span.on { background: var(--stencil); }
+.map-table { border-collapse: collapse; width: 100%; max-width: 860px; margin: 10px 0; }
+.map-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.map-table td:first-child { font-weight: 600; width: 45%; }
+.map-table td:nth-child(2) { color: var(--dim); width: 40px; text-align: center; }
+.map-table td:last-child { font-family: var(--mono); font-weight: 700; color: var(--stencil); }
+.compare { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
+.compare .panel { flex: 1; min-width: 260px; }
+.compare .num { font-family: var(--mono); font-size: 1.8rem; font-weight: 800; color: var(--stencil); }
+.pipeline { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 14px 0; }
+.pipeline .stage { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; min-width: 120px; flex: 1; }
+.pipeline .stage b { display: block; }
+.pipeline .stage span { font-size: 0.8rem; color: var(--dim); }
+.pipeline .arrow { align-self: center; color: var(--dim); font-weight: 800; }
+.takeaway { border: 2px solid var(--good); background: var(--good-soft); border-radius: 14px; padding: 14px 18px; margin-top: 16px; max-width: 860px; }
+.takeaway b { color: var(--good); }
+
+@media (max-width: 620px) {
+    body { font-size: 16px; }
+    main { padding: 18px 14px 50px; }
+    .pips { display: none; }
+    .pile { grid-template-columns: repeat(3, auto); }
+}
+
+/* ═══ LAYOUT CONSISTENCY (shared across all games) ═══ */
+/* text blocks use the full content width, the same in every game */
+.lead, .mara, .task, .takeaway, .map-table, .why, .feedback, .caption { max-width: none; }
+@media (max-width: 620px) {
+    /* top bar stays on one line on phones */
+    .topbar { flex-wrap: nowrap; gap: 10px; padding: 10px 14px; }
+    .topbar .title { flex: 1; min-width: 0; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .theme-btn { margin-left: auto; flex-shrink: 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<div class="topbar">
+    <a href="index.html">← All games</a>
+    <div class="title">Game 5 · <span>Why a Stencil?</span></div>
+    <div class="pips" id="pips"></div>
+    <button class="theme-btn" onclick="toggleTheme()" title="Light / dark">◐</button>
+</div>
+
+<main>
+
+<!-- ═══ THE PILE, ONCE MORE ═══ -->
+<section class="screen active" id="s-pile">
+    <h1>The training pile, once more 📦</h1>
+    <p class="lead">These are the same 12 labelled trays the stencil sorter learned from in Game 4.</p>
+    <div class="mara">
+        <div class="avatar">👷</div>
+        <div class="bubble"><div class="who">MARA · LINE SUPERVISOR</div>
+            Funny thing about this pile: whoever packed the training trays always dropped the part into the <b>top-left corner</b>. Pure habit. On the real line, parts land <b>anywhere</b> in the tray. A good sorter should care about the <b>shape</b> of the part, not where it happens to sit.</div>
+    </div>
+    <div class="pile-layout">
+        <div class="col"><div class="label">The 12 training trays</div><div class="pile" id="pilePile"></div></div>
+        <div class="panel occ-card">
+            <div class="label">Where plastic appeared, added up over all 12</div>
+            <div class="wgrid px occ" id="pileOcc"></div>
+            <p class="muted" style="font-size:0.95rem;margin:0;">Each square shows in how many trays it had plastic. Everything happens inside the outlined 4 × 4 corner; the rest of the tray was always empty.</p>
+        </div>
+    </div>
+    <div class="actions"><button class="btn primary" onclick="startBoth()">Next →</button></div>
+</section>
+
+<!-- ═══ TRAIN BOTH SORTERS ═══ -->
+<section class="screen" id="s-hook">
+    <h2>Two sorters, one pile 🤝</h2>
+    <div class="mara">
+        <div class="avatar">👷</div>
+        <div class="bubble"><div class="who">MARA</div>
+            The supplier is pushing an older-generation sorter. It doesn't slide a stencil: it has <b>one number for each of the 64 squares</b> of the tray, all wired straight to the answer. Engineers call that a <b>fully connected</b> network. Let's train both on this pile and compare.</div>
+    </div>
+    <div class="task"><b>Task:</b> Press <b>Train both sorters</b>. Both start from scratch and learn from the same 12 trays, round by round, until they get them all right.</div>
+    <div class="sorters" style="margin-top:22px;">
+        <div class="panel">
+            <div class="label">🧠 Stencil sorter (the same as in Game 4)</div>
+            <div class="vis-box"><div class="wgrid sm" id="hookStencil"></div></div>
+            <div class="how"><b>How it decides:</b> slides its 3 × 3 stencil over every spot, keeps the best score, and says "T-part" if it's high enough.</div>
+            <div class="score-line"><span class="big-score" id="hookScoreA"></span> <span class="muted">correct on the pile</span></div>
+        </div>
+        <div class="panel">
+            <div class="label">🔢 Supplier's sorter (fully connected)</div>
+            <div class="vis-box"><div class="wgrid px" id="hookPixel"></div></div>
+            <div class="how"><b>How it decides:</b> every square has its own number (drawn where it sits on the tray, the training corner outlined). It adds up the numbers under the plastic and says "T-part" if the total is high enough.</div>
+            <div class="score-line"><span class="big-score" id="hookScoreB"></span> <span class="muted">correct on the pile</span></div>
+        </div>
+    </div>
+    <div class="legend" style="margin-top:12px;"><span><i style="background:var(--stencil)"></i>plastic here → more T-like</span><span><i style="background:var(--bad)"></i>plastic here → less T-like</span><span><i style="background:var(--surface);border:2px solid var(--warn)"></i>outlined corner: squares that had plastic in training</span></div>
+    <div class="caption" id="bothCaption" style="margin-top:10px;"></div>
+    <div class="actions">
+        <button class="btn primary" id="btnBoth" onclick="trainBoth()">▶ Train both sorters</button>
+        <button class="btn primary" id="btnBothNext" onclick="showScreen('s-bet')" disabled>Next →</button>
+    </div>
+</section>
+
+<!-- ═══ BET ═══ -->
+<section class="screen" id="s-bet">
+    <h2>💭 Your bet</h2>
+    <p class="lead">A T-part turns up in the <b>bottom-right</b> corner of a tray, where no training part ever sat. Which sorter will still recognise it?</p>
+    <div class="choices" id="betChoices" style="margin-top:14px;">
+        <div class="choice" data-b="stencil" onclick="pickBet('stencil')">🧠 The stencil sorter</div>
+        <div class="choice" data-b="pixel" onclick="pickBet('pixel')">🔢 The supplier's sorter</div>
+        <div class="choice" data-b="both" onclick="pickBet('both')">Both</div>
+        <div class="choice" data-b="neither" onclick="pickBet('neither')">Neither</div>
+    </div>
+    <div class="actions"><button class="btn primary" id="btnBet" onclick="startMove()" disabled>Try it →</button></div>
+</section>
+
+<!-- ═══ IDEA 1: MOVE THE PART ═══ -->
+<section class="screen" id="s-move">
+    <h2>Test them on new trays</h2>
+    <p class="lead">Both sorters scored 12 / 12 on the training pile. But on the real line a part can land <b>anywhere</b> in the tray. So let's test them on trays they have never seen, and you get to build the test trays.</p>
+    <div class="task"><b>Task:</b> Move the T-part out of the shaded training corner (arrow buttons or arrow keys), all the way to the bottom-right, and compare the two sorters' answers. Then test other parts in other spots.</div>
+    <div class="move-layout">
+        <div class="col" style="align-items:center;">
+            <div class="picker" id="picker"></div>
+            <div class="grid-wrap" style="margin:8px 8px 48px;"><div class="grid" id="moveTray"></div><div class="frame" id="moveFrame"></div></div>
+        </div>
+        <div class="col" style="flex:1;min-width:320px;gap:14px;">
+            <div class="panel" style="display:flex;flex-direction:column;gap:8px;">
+                <div class="label">🧠 Stencil sorter · orange box = where its stencil fits best</div>
+                <div class="score-row"><div class="bigbar" id="barA"><i></i><b></b></div><span class="score-num" id="numA"></span><span class="verdict-pill" id="verA"></span></div>
+            </div>
+            <div class="panel" style="display:flex;flex-direction:column;gap:8px;">
+                <div class="label">🔢 Supplier's sorter</div>
+                <div class="score-row"><div class="bigbar" id="barB"><i></i><b></b></div><span class="score-num" id="numB"></span><span class="verdict-pill" id="verB"></span></div>
+            </div>
+            <div class="pad-wrap">
+                <div class="pad">
+                    <span></span><button onclick="move(-1,0)" id="mvU">↑</button><span></span>
+                    <button onclick="move(0,-1)" id="mvL">←</button><span></span><button onclick="move(0,1)" id="mvR">→</button>
+                    <span></span><button onclick="move(1,0)" id="mvD">↓</button><span></span>
+                </div>
+                <span class="muted" style="font-size:0.85rem;">Move the part, or use your arrow keys.</span>
+            </div>
+        </div>
+    </div>
+    <div class="move-why" id="moveWhy"></div>
+    <div class="feedback ok" id="moveBet"></div>
+    <div class="takeaway" id="moveConclusion" style="display:none;max-width:none;"><b>Takeaway:</b> the stencil sorter learned the <b>shape</b> of a T, not where it sits. Its stencil checks every spot of the tray, so it finds the pattern wherever it shows up. The supplier's sorter learned <b>which squares</b> light up in the training corner, so it only knows those spots. Learning patterns instead of positions is why CNNs became a go-to tool for images.</div>
+    <div class="actions"><button class="btn primary" id="btnMove" onclick="startSize()" disabled>Next →</button></div>
+</section>
+
+<!-- ═══ IDEA 2: COUNT THE NUMBERS ═══ -->
+<section class="screen" id="s-size">
+    <h2>Count the numbers</h2>
+    <p class="lead">How many numbers does each sorter have to learn? Our tray is tiny, but real pictures are not. Slide through all the sizes, up to a 1-megapixel photo.</p>
+    <div class="panel size-card">
+        <div class="label">Picture size</div>
+        <div class="size-now" id="sizeLabel"></div>
+        <input type="range" min="0" max="3" step="1" value="0" id="sizeSlider" oninput="renderSize()">
+        <div class="ticks" id="sizeTicks"></div>
+    </div>
+    <div class="sorters" style="margin-top:16px;">
+        <div class="panel count-card"><div class="label">🧠 Stencil sorter</div><div class="count" id="countA">10</div><div class="muted">9 stencil numbers + 1 bias. The same at every picture size.</div></div>
+        <div class="panel count-card"><div class="label">🔢 Supplier's sorter</div><div class="count big" id="countB"></div><div class="muted" id="countBNote"></div></div>
+    </div>
+    <div class="ratio" id="ratio"></div>
+    <p class="size-why"><b>Why the stencil stays small:</b> it only ever looks at a 3 × 3 patch at a time, and it reuses the same 9 numbers at every spot. The supplier's sorter wires every single pixel straight to the answer, each with its own number.</p>
+    <div class="takeaway" id="sizeTakeaway" style="max-width:none;display:none;"><b>Takeaway:</b> CNNs are far more efficient for images. A filter has the same few numbers however big the picture is, while a fully connected network needs a number for every pixel. Fewer numbers to learn means a smaller model and fewer training examples needed to learn them, which is a big part of why CNNs made image recognition practical.</div>
+    <div class="actions"><button class="btn primary" id="btnSize" onclick="startReveal()" disabled>Final summary →</button></div>
+</section>
+
+<!-- ═══ REVEAL ═══ -->
+<section class="screen" id="s-reveal">
+    <div class="stepper-dots" id="revealDots"></div>
+    <div id="revealBody"></div>
+    <div class="actions">
+        <button class="btn" id="revealBack" onclick="revealStep(-1)">← Back</button>
+        <button class="btn primary" id="revealNext" onclick="revealStep(1)">Next →</button>
+    </div>
+</section>
+
+</main>
+
+<script>
+// ═══ DATA ═══
+// Every tray holds one part. The pile is balanced: six T-parts and six others.
+const SHAPES = {
+    T: [[1, 1, 1], [0, 1, 0]], L: [[1, 0], [1, 0], [1, 1]], J: [[0, 1], [0, 1], [1, 1]],
+    S: [[0, 1, 1], [1, 1, 0]], Z: [[1, 1, 0], [0, 1, 1]], O: [[1, 1], [1, 1]], I: [[1, 1, 1, 1]],
+};
+const OTHERS = ['L', 'J', 'S', 'Z', 'O', 'I'];
+const N = 8;          // tray size
+const PAD = 2;        // the stencil may hang this far off the tray edge
+const SEED = 36;      // starting stencil; with LR 1.5 this seed is all-correct after 11 rounds, with one dip on the way
+const LR = 1.5, LR_PIXEL = 2.0, INIT = 0.4;
+
+function makeTray(shape, r, c) {
+    const g = Array.from({ length: N }, () => Array(N).fill(0));
+    shape.forEach((row, i) => row.forEach((v, j) => { if (v) g[r + i][c + j] = 1; }));
+    return g;
+}
+function positions(name, off) {
+    const s = SHAPES[name], out = [];
+    for (let r = off; r + s.length <= off + 4; r++) for (let c = off; c + s[0].length <= off + 4; c++) out.push([r, c]);
+    return out;
+}
+// off = 0: parts in the top-left 4×4 corner (training). off = 4: the same trays shifted to the bottom-right.
+function makePile(off) {
+    const out = [];
+    positions('T', off).forEach(([r, c]) => out.push({ x: makeTray(SHAPES.T, r, c), y: 1, name: 'T' }));
+    OTHERS.forEach((n, i) => { const ps = positions(n, off); const [r, c] = ps[(i * 3) % ps.length]; out.push({ x: makeTray(SHAPES[n], r, c), y: 0, name: n }); });
+    return out;
+}
+const TRAIN = makePile(0), CAMERA2 = makePile(4);
+
+// ═══ ENGINE: the stencil sorter (a one-filter CNN) ═══
+// T-score(tray) = sigmoid(best stencil score anywhere); the stencil's bias b sets the bar. Answer "T-part" above 0.5.
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const px = (x, r, c) => (r >= 0 && r < N && c >= 0 && c < N) ? x[r][c] : 0;
+function newCNN() {
+    const rng = mulberry32(SEED);
+    return { w: Array.from({ length: 3 }, () => Array.from({ length: 3 }, () => (rng() - 0.5) * INIT)), b: 0 };
+}
+function forwardCNN(m, x) {
+    let best = -1e9, br = 0, bc = 0;
+    for (let r = -PAD; r < N + PAD - 2; r++) for (let c = -PAD; c < N + PAD - 2; c++) {
+        let s = m.b;
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) s += px(x, r + i, c + j) * m.w[i][j];
+        if (s > best) { best = s; br = r; bc = c; }
+    }
+    const p = 1 / (1 + Math.exp(-best));
+    return { best, r: br, c: bc, p };
+}
+// One round = look at the whole pile once, then move every number a little downhill on the error.
+function roundCNN(m, set) {
+    const gw = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; let gb = 0;
+    for (const s of set) {
+        const f = forwardCNN(m, s.x), g = f.p - s.y;   // cross-entropy through the sigmoid: d loss / d best = p − y
+        for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) gw[i][j] += g * px(s.x, f.r + i, f.c + j);
+        gb += g;
+    }
+    const n = set.length;
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) m.w[i][j] -= LR * gw[i][j] / n;
+    m.b -= LR * gb / n;
+}
+// ═══ ENGINE: the square-by-square sorter (no stencil, one number per square) ═══
+// Random start, like the stencil. SEED_PX = 7: outside the corner its answers are visibly luck (it finds 2 of the 6 bottom-right T's).
+const SEED_PX = 7;
+function newPixel() { const rng = mulberry32(SEED_PX); return { w: Array.from({ length: N }, () => Array.from({ length: N }, () => (rng() - 0.5) * INIT)), c: 0 }; }
+function forwardPixel(m, x) {
+    let z = m.c;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) z += m.w[r][c] * x[r][c];
+    return { p: 1 / (1 + Math.exp(-z)) };
+}
+function roundPixel(m, set) {
+    const gw = Array.from({ length: N }, () => Array(N).fill(0)); let gc = 0;
+    for (const s of set) { const g = forwardPixel(m, s.x).p - s.y; for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) gw[r][c] += g * s.x[r][c]; gc += g; }
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) m.w[r][c] -= LR_PIXEL * gw[r][c] / set.length;
+    m.c -= LR_PIXEL * gc / set.length;
+}
+// The full map of stencil scores (the feature map), 10 × 10: the stencil may hang 2 squares off each edge.
+function featureMap(m, x) {
+    const out = [];
+    for (let r = -PAD; r < N + PAD - 2; r++) {
+        const row = [];
+        for (let c = -PAD; c < N + PAD - 2; c++) {
+            let s = m.b;
+            for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) s += px(x, r + i, c + j) * m.w[i][j];
+            row.push(s);
+        }
+        out.push(row);
+    }
+    return out;
+}
+// Binary cross-entropy for one tray, and its average over a pile.
+const bce = (p, y) => { const q = Math.min(1 - 1e-9, Math.max(1e-9, p)); return -(y ? Math.log(q) : Math.log(1 - q)); };
+const lossOf = (m, set) => set.reduce((a, s) => a + bce(forwardCNN(m, s.x).p, s.y), 0) / set.length;
+const says = f => f.p > 0.5 ? 1 : 0;
+const correct = (fwd, m, set) => set.filter(s => says(fwd(m, s.x)) === s.y).length;
+
+// ═══ RENDER HELPERS ═══
+const $ = id => document.getElementById(id);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const fmt = v => Math.abs(v) < 0.05 ? '0.0' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1);
+function heat(v, scale = 2.5) {
+    const a = Math.min(1, Math.abs(v) / scale);
+    if (a < 0.04) return 'var(--surface2)';
+    return `color-mix(in srgb, ${v > 0 ? 'var(--stencil)' : 'var(--bad)'} ${Math.round(12 + a * 88)}%, var(--surface2))`;
+}
+function renderWeights(el, w, { prev = null, numbers = true, scale = 2.5, cls = '', quad = false } = {}) {
+    const rows = w.length, cols = w[0].length;
+    el.className = 'wgrid ' + cls;
+    el.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+    el.innerHTML = '';
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const d = document.createElement('div');
+        const v = w[r][c];
+        d.className = 'wcell' + (prev && Math.abs(v - prev[r][c]) > 0.04 ? ' flash' : '') + (quad && r >= 4 && c >= 4 ? ' q2' : '');
+        d.style.background = heat(v, scale);
+        const strong = Math.abs(v) / scale > 0.55;
+        d.style.color = strong ? '#fff' : 'var(--ink)';
+        if (numbers) d.textContent = fmt(v);
+        d.title = fmt(v);
+        el.appendChild(d);
+    }
+}
+function trayEl(x, thumb = false) {
+    const g = document.createElement('div');
+    g.className = 'grid' + (thumb ? ' thumb' : '');
+    g.style.gridTemplateColumns = `repeat(${N}, auto)`;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) g.insertAdjacentHTML('beforeend', `<div class="cell${x[r][c] ? ' lit' : ''}"></div>`);
+    return g;
+}
+// pile of thumbnails; result(i) -> null | {ok, text}
+function renderPile(el, set, { result = null, sel = -1, onPick = null } = {}) {
+    el.innerHTML = '';
+    set.forEach((s, i) => {
+        const card = document.createElement('div');
+        const res = result ? result(i) : null;
+        card.className = 'tcard' + (i === sel ? ' sel' : '') + (res ? (res.ok ? ' right' : ' wrong') : '');
+        card.appendChild(trayEl(s.x, true));
+        card.insertAdjacentHTML('beforeend', `<div class="tag ${s.y ? 't' : ''}">${s.y ? 'T-part' : 'not T'}</div>` +
+            (res && res.p !== undefined ? `<div class="tbar" title="T-score ${res.p.toFixed(2)}"><i style="width:${(res.p * 100).toFixed(1)}%;background:${res.ok ? 'var(--good)' : 'var(--bad)'}"></i><b></b></div>` : '') +
+            `<div class="res ${res ? (res.ok ? 'right' : 'wrong') : ''}">${res ? res.text : ''}</div>`);
+        if (onPick) card.onclick = () => onPick(i);
+        el.appendChild(card);
+    });
+}
+// dashed frame where the stencil fits best (it may hang off the edge)
+function drawFrame(gridEl, frameEl, r, c) {
+    const cells = gridEl.children;
+    const a = cells[0], b = cells[1], d = cells[N];
+    const pitchX = b.offsetLeft - a.offsetLeft, pitchY = d.offsetTop - a.offsetTop;
+    frameEl.style.display = 'block';
+    frameEl.style.left = (a.offsetLeft + c * pitchX - 4) + 'px';
+    frameEl.style.top = (a.offsetTop + r * pitchY - 4) + 'px';
+    frameEl.style.width = (2 * pitchX + a.offsetWidth + 8) + 'px';
+    frameEl.style.height = (2 * pitchY + a.offsetHeight + 8) + 'px';
+}
+
+// ═══ SCREENS ═══
+const SCREENS = ['s-pile', 's-hook', 's-bet', 's-move', 's-size', 's-reveal'];
+const PIP_TITLES = ['The pile', 'Train both', 'Your bet', 'Test on new trays', 'Count the numbers', 'Final summary'];
+function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+    const idx = SCREENS.indexOf(id);
+    $('pips').innerHTML = SCREENS.map((_, i) => `<button class="pip${i < idx ? ' done' : i === idx ? ' now' : ''}" title="${PIP_TITLES[i]}" aria-label="Go to: ${PIP_TITLES[i]}" onclick="goTo(${i})"></button>`).join('');
+    window.scrollTo(0, 0);
+    bothTok++;   // leaving the screen stops the live training animation
+}
+const ENTER = {
+    's-pile': () => showScreen('s-pile'),
+    's-hook': () => startBoth(),
+    's-bet': () => { ensureBoth(); showScreen('s-bet'); },
+    's-move': () => { ensureBoth(); startMove(); },
+    's-size': () => startSize(),
+    's-reveal': () => startReveal(),
+};
+function goTo(i) { ENTER[SCREENS[i]](); }
+
+// ═══ THE PILE ═══
+const inCornerSq = i => Math.floor(i / N) < 4 && i % N < 4;
+function renderPileScreen() {
+    renderPile($('pilePile'), TRAIN);
+    const occ = Array.from({ length: N }, (_, r) => Array.from({ length: N }, (_, c) => TRAIN.filter(s => s.x[r][c]).length));
+    renderWeights($('pileOcc'), occ, { numbers: false, scale: 8, cls: 'px occ' });
+    [...$('pileOcc').children].forEach((d, i) => {
+        const v = occ[Math.floor(i / N)][i % N];
+        d.textContent = v || '';
+        d.style.color = v > 5 ? '#fff' : 'var(--ink)';
+        if (inCornerSq(i)) d.classList.add('corner');
+    });
+}
+
+// ═══ TRAIN BOTH SORTERS, LIVE ═══
+// Same engine, seed and steps as Game 4, so the stencil sorter ends on the stencil the player trained.
+const W_SCALE = 0.8;
+let cnn = newCNN(), pixel = newPixel(), roundsDone = 0, bothDone = false, bothTok = 0;
+const doneA = () => correct(forwardCNN, cnn, TRAIN) === TRAIN.length;
+const doneB = () => correct(forwardPixel, pixel, TRAIN) === TRAIN.length;
+function startBoth() { showScreen('s-hook'); renderBoth(); }
+function renderBoth(prevA = null, prevB = null) {
+    renderWeights($('hookStencil'), cnn.w, { scale: W_SCALE, cls: 'sm', prev: prevA });
+    renderWeights($('hookPixel'), pixel.w, { scale: 1.5, cls: 'px pxn', prev: prevB });
+    [...$('hookPixel').children].forEach((d, i) => { if (inCornerSq(i)) d.classList.add('corner'); });
+    const a = correct(forwardCNN, cnn, TRAIN), b = correct(forwardPixel, pixel, TRAIN);
+    $('hookScoreA').textContent = `${a} / ${TRAIN.length}`; $('hookScoreA').classList.toggle('full', a === TRAIN.length);
+    $('hookScoreB').textContent = `${b} / ${TRAIN.length}`; $('hookScoreB').classList.toggle('full', b === TRAIN.length);
+    $('btnBoth').style.display = bothDone ? 'none' : '';
+    $('btnBothNext').disabled = !bothDone;
+    $('bothCaption').innerHTML = bothDone
+        ? `✓ Both get <b>12 out of 12</b> on the pile. Notice where the supplier's numbers changed: only inside the outlined corner. A square that never had plastic never gets a nudge, so outside the corner every number is still the random one it started with.`
+        : roundsDone ? `Round ${roundsDone}…` : 'Both start from scratch with random numbers.';
+}
+function stepBoth() {
+    const prevA = cnn.w.map(r => [...r]), prevB = pixel.w.map(r => [...r]);
+    if (!doneA()) roundCNN(cnn, TRAIN);
+    if (!doneB()) roundPixel(pixel, TRAIN);
+    roundsDone++;
+    return [prevA, prevB];
+}
+async function trainBoth() {
+    if (bothDone) return;
+    const tok = ++bothTok;
+    $('btnBoth').disabled = true;
+    while (!(doneA() && doneB()) && roundsDone < 200) {
+        renderBoth(...stepBoth());
+        await wait(300);
+        if (tok !== bothTok) { $('btnBoth').disabled = false; return; }
+    }
+    bothDone = true;
+    renderBoth();
+}
+function ensureBoth() {
+    // skipping ahead with the dots: run the same rounds instantly
+    while (!(doneA() && doneB()) && roundsDone < 200) stepBoth();
+    bothDone = true;
+}
+let bet = null;
+function pickBet(b) {
+    bet = b;
+    document.querySelectorAll('#betChoices .choice').forEach(c => c.classList.toggle('picked', c.dataset.b === b));
+    $('btnBet').disabled = false;
+}
+
+// ═══ IDEA 1: MOVE THE PART ═══
+const PICKS = ['T', 'L', 'S', 'O'];
+let part = 'T', pr = 0, pc = 0, tReachedCorner = false;
+const inCorner = (s, r, c) => r + s.length <= 4 && c + s[0].length <= 4;
+const inBottomRight = (s, r, c) => r >= 4 && c >= 4;
+function startMove() { showScreen('s-move'); renderMove(); }
+function setPart(k) {
+    part = k;
+    const s = SHAPES[k];
+    pr = Math.min(pr, N - s.length); pc = Math.min(pc, N - s[0].length);
+    renderMove();
+}
+function move(dr, dc) {
+    const s = SHAPES[part];
+    pr = Math.max(0, Math.min(N - s.length, pr + dr));
+    pc = Math.max(0, Math.min(N - s[0].length, pc + dc));
+    renderMove();
+}
+function scoreRow(id, p, ok) {
+    $('bar' + id).querySelector('i').style.width = (p * 100).toFixed(1) + '%';
+    $('bar' + id).querySelector('i').style.background = ok ? 'var(--good)' : 'var(--bad)';
+    $('num' + id).textContent = p.toFixed(2);
+    const v = $('ver' + id);
+    v.className = 'verdict-pill ' + (ok ? 'right' : 'wrong');
+    v.textContent = `says ${p > 0.5 ? 'T-part' : 'not a T'} ${ok ? '✓' : '✗'}`;
+}
+function renderMove() {
+    const s = SHAPES[part], x = makeTray(s, pr, pc), isT = part === 'T';
+    $('picker').innerHTML = PICKS.map(k => `<button class="btn${k === part ? ' on' : ''}" onclick="setPart('${k}')">${k === 'T' ? 'T-part' : k + '-part'}</button>`).join('');
+    const tray = trayEl(x);
+    tray.id = 'moveTray';
+    [...tray.children].forEach((d, i) => { if (Math.floor(i / N) < 4 && i % N < 4) d.classList.add('trained'); });
+    $('moveTray').replaceWith(tray);
+    const fA = forwardCNN(cnn, x), fB = forwardPixel(pixel, x);
+    requestAnimationFrame(() => drawFrame($('moveTray'), $('moveFrame'), fA.r, fA.c));
+    const okA = says(fA) === (isT ? 1 : 0), okB = says(fB) === (isT ? 1 : 0);
+    scoreRow('A', fA.p, okA);
+    scoreRow('B', fB.p, okB);
+    $('mvU').disabled = pr === 0; $('mvL').disabled = pc === 0;
+    $('mvD').disabled = pr === N - s.length; $('mvR').disabled = pc === N - s[0].length;
+    const corner = inCorner(s, pr, pc);
+    let why;
+    if (corner) why = '<p>In the training corner both sorters know what to do.</p>';
+    else why = `<p><b>Stencil sorter:</b> it slides the same 9 numbers over every spot, so this part gets exactly the score it got in the corner (${fA.p.toFixed(2)}).</p>` +
+        `<p><b>Supplier's sorter:</b> it adds up its own number for each square under the part. ` +
+        (x.flat().every((v, i) => !v || (Math.floor(i / N) < 4 && i % N < 4)) ? '' :
+            (inBottomRight(s, pr, pc)
+                ? 'Down here those numbers were never trained: they are still the random ones it started with, so its answer is luck. Move the part around this corner and watch its score jump.'
+                : 'Only the squares still inside the corner were trained; the rest are still random.')) + '</p>';
+    $('moveWhy').innerHTML = why;
+    if (isT && inBottomRight(s, pr, pc)) tReachedCorner = true;
+    if (tReachedCorner) {
+        $('btnMove').disabled = false;
+        const line = { stencil: 'Your bet was right: only the stencil sorter is reliable down here.', pixel: 'Your bet was on the supplier\'s sorter. Down here it can only guess: its numbers in this corner are still random.', both: 'Only the stencil sorter is reliable down here; the supplier\'s sorter is guessing.', neither: 'The stencil sorter copes fine; the supplier\'s sorter is guessing.' }[bet] || 'Only the stencil sorter is reliable down here.';
+        $('moveBet').textContent = (bet === 'stencil' ? '✓ ' : '') + line;
+        $('moveBet').className = 'feedback' + (bet === 'stencil' ? ' ok' : '');
+        $('moveConclusion').style.display = 'block';
+    }
+}
+document.addEventListener('keydown', e => {
+    if (!$('s-move').classList.contains('active')) return;
+    const k = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+    if (k) { e.preventDefault(); move(...k); }
+});
+
+// ═══ IDEA 2: COUNT THE NUMBERS ═══
+const SIZES = [
+    { n: 8, what: 'our tray' },
+    { n: 28, what: 'a handwritten digit' },
+    { n: 224, what: 'a typical photo for an image model' },
+    { n: 1000, what: 'a 1-megapixel photo' },
+];
+function startSize() { showScreen('s-size'); renderSize(); }
+const sizesSeen = new Set();
+function renderSize() {
+    const k = +$('sizeSlider').value, z = SIZES[k], fc = z.n * z.n + 1;
+    sizesSeen.add(k);
+    if (sizesSeen.size === SIZES.length) { $('sizeTakeaway').style.display = 'block'; $('btnSize').disabled = false; }   // only once every size has been seen
+    $('sizeTicks').innerHTML = SIZES.map((t, i) => `<button class="${i === k ? 'on' : ''}" style="left:${(100 * i / (SIZES.length - 1)).toFixed(3)}%" onclick="$('sizeSlider').value=${i};renderSize()">${t.n.toLocaleString('en')} × ${t.n.toLocaleString('en')}<br>${t.what}</button>`).join('');
+    $('sizeLabel').textContent = `${z.n.toLocaleString('en')} × ${z.n.toLocaleString('en')} · ${z.what}`;
+    $('countB').textContent = fc.toLocaleString('en');
+    $('countBNote').textContent = `${(z.n * z.n).toLocaleString('en')} pixels, one number each, + 1 bias.`;
+    const r = fc / 10;
+    $('ratio').textContent = `The supplier's sorter needs ${r < 10 ? r.toFixed(1) : Math.round(r).toLocaleString('en')} × as many numbers to learn.`;
+}
+
+// ═══ REVEAL ═══
+let revealIdx = 0;
+const REVEAL = [
+    () => `
+        <h1>Summary: what a CNN is and why it works</h1>
+        <p class="lead">A convolutional neural network (CNN) recognises patterns in images. Here is everything in one place.</p>
+
+        <h3 class="sum-h">How a CNN turns an image into an answer</h3>
+        <div class="pipeline">
+            <div class="stage"><b>Image</b><span>a grid of pixel values</span></div><div class="arrow">→</div>
+            <div class="stage"><b>Convolution</b><span>small filters slide over it → feature maps</span></div><div class="arrow">→</div>
+            <div class="stage"><b>Activation</b><span>keep the strong matches</span></div><div class="arrow">→</div>
+            <div class="stage"><b>Pooling</b><span>summarise and shrink the maps</span></div><div class="arrow">→</div>
+            <div class="stage"><b>More layers</b><span>combine simple patterns into complex ones</span></div><div class="arrow">→</div>
+            <div class="stage"><b>Output</b><span>a probability, e.g. via a sigmoid</span></div>
+        </div>
+
+        <h3 class="sum-h">The key ideas</h3>
+        <div class="sum-cards">
+            <div class="sum-card"><b>Filter and convolution</b>A filter is a small grid of numbers. It slides over the image and, at every position, scores how well the patch underneath matches. All the scores together form a <em>feature map</em>.</div>
+            <div class="sum-card"><b>Many filters, many maps</b>Each filter looks for one pattern, so a layer has many filters and produces one feature map per filter (the <em>channels</em>).</div>
+            <div class="sum-card"><b>Activation</b>A simple function such as ReLU keeps strong matches and drops weak ones before the next layer.</div>
+            <div class="sum-card"><b>Layers</b>Later layers read the feature maps of earlier ones, so simple patterns combine into complex ones: edges → shapes → parts → objects.</div>
+            <div class="sum-card"><b>Pooling</b>Keeps the strongest value in each neighbourhood. It tolerates small shifts and shrinks the maps; too much pooling loses where things are.</div>
+            <div class="sum-card"><b>Loss and training</b>The network's guess is compared with the label using a loss (e.g. cross-entropy). Gradient descent adjusts every filter number to lower the loss, round after round. Nobody designs the filters by hand.</div>
+        </div>
+
+        <h3 class="sum-h">Why a CNN and not a fully connected network?</h3>
+        <table class="sum-table">
+            <tr><th></th><th>Fully connected network</th><th>CNN</th></tr>
+            <tr><td>Connections</td><td>Every pixel wired straight to the answer, each with its own weight</td><td>Each filter only looks at a small patch at a time (<b>locality</b>)</td></tr>
+            <tr><td>Position</td><td>Learns each position separately; a pattern in a new spot is unknown</td><td>The same filter is reused at every position (<b>weight sharing</b>), so a pattern learned in one place is recognised in others</td></tr>
+            <tr><td>Size</td><td>Grows with the image: a 1,000 × 1,000 photo needs a million weights per output</td><td>A 3 × 3 filter has 9 weights (+ bias), whatever the image size</td></tr>
+            <tr><td>Data needed</td><td>Many examples, ideally of every pattern at every position</td><td>Far fewer, because what it learns is shared across the whole image</td></tr>
+        </table>
+        <p class="muted" style="font-size:0.85rem;">In real networks the tolerance to shifts is good but not perfect (strided pooling and image borders get in the way), so training images are often shifted and cropped as well.</p>
+
+        <div class="takeaway" style="max-width:none;"><b>What this means for you:</b>
+            <ul class="sum-list">
+                <li>Nobody programs what a CNN looks for: it learns its filters from labelled examples.</li>
+                <li>Small filters reused across the whole image make CNNs efficient and good at finding a pattern wherever it appears. That is why they became a go-to tool for image recognition.</li>
+                <li>Design choices such as the number of layers and how much to pool shape what a vision system will and won't cope with.</li>
+            </ul>
+        </div>
+        <div class="actions"><a class="btn primary" href="index.html">Back to all games</a></div>`,
+];
+function startReveal() { revealIdx = 0; showScreen('s-reveal'); renderReveal(); }
+function revealStep(d) { revealIdx = Math.max(0, Math.min(REVEAL.length - 1, revealIdx + d)); renderReveal(); window.scrollTo(0, 0); }
+function renderReveal() {
+    $('revealBody').innerHTML = REVEAL[revealIdx]();
+    $('revealDots').innerHTML = REVEAL.length > 1 ? REVEAL.map((_, i) => `<span class="${i <= revealIdx ? 'on' : ''}"></span>`).join('') : '';
+    $('revealBack').style.display = REVEAL.length > 1 ? '' : 'none';
+    $('revealBack').disabled = revealIdx === 0;
+    $('revealNext').style.display = revealIdx === REVEAL.length - 1 ? 'none' : 'inline-block';
+}
+
+// ═══ THEME ═══
+function applyTheme(t) { document.documentElement.dataset.theme = t; }
+function toggleTheme() {
+    const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    applyTheme(t);
+    try { localStorage.setItem('pixeltoys-theme', t); } catch (e) {}
+}
+(function initTheme() {
+    let t = null;
+    try { t = localStorage.getItem('pixeltoys-theme'); } catch (e) {}
+    applyTheme(t || 'light');
+})();
+
+// ═══ INIT ═══
+renderPileScreen();
+showScreen('s-pile');
+</script>
+</body>
+</html>
